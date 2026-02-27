@@ -13,7 +13,7 @@ const RefreshToken = require('../models/RefreshToken');
  */
 exports.register = async (req, res) => {
   try {
-    let { name, email, password, marketingConsent } = req.body || {};
+    let { name, email, password, role, marketingConsent } = req.body || {};
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields: name, email, password' });
@@ -31,6 +31,11 @@ exports.register = async (req, res) => {
     const pwdCheck = passwordStrength(String(password));
     if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
 
+    // Validate role
+    if (role && !['attendee', 'organizer'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email already exists' });
@@ -43,10 +48,11 @@ exports.register = async (req, res) => {
       name,
       email,
       passwordHash,
+      role: role || 'attendee',
       marketingConsent
     });
 
-    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name } });
+    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
     console.error('Register error', err);
     return res.status(500).json({ message: 'Server error' });

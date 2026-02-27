@@ -11,6 +11,7 @@ export default function Register() {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "attendee",
     marketingConsent: false,
     termsAccepted: false
   });
@@ -195,6 +196,27 @@ export default function Register() {
               error={errors.email}
               required
             />
+
+            <div className="relative">
+              <label htmlFor="role" className="block text-sm font-medium text-white mb-2">
+                Account Type <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                required
+              >
+                <option value="attendee">
+                  Attendee - Purchase tickets and attend events
+                </option>
+                <option value="organizer">
+                  Organizer - Create and manage events
+                </option>
+              </select>
+            </div>
 
             <Input
               label="Password"

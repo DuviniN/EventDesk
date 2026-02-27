@@ -1,9 +1,10 @@
-export default function Input({ label, error, className = '', ...props }) {
+export default function Input({ label, error, required, className = '', ...props }) {
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-white mb-2">
           {label}
+          {required && <span className="text-red-500">*</span>}
         </label>
       )}
       <input
