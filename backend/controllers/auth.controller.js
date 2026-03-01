@@ -2,7 +2,8 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const {
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
+  verifyRefreshToken
 } = require("../utils/jwt");
 const { isEmailValid, passwordStrength } = require("../utils/validators");
 const crypto = require('crypto');
@@ -174,28 +175,56 @@ exports.resetPassword = async (req, res) => {
  * REFRESH TOKEN
  */
 exports.refreshToken = async (req, res) => {
-  const token = req.cookies.refreshToken;
-  if (!token) return res.sendStatus(401);
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.sendStatus(401);
 
-  const user = await User.findOne({ refreshToken: token });
-  if (!user) return res.sendStatus(403);
+    const user = await User.findOne({ refreshToken: token });
+    if (!user) return res.sendStatus(403);
 
-  const accessToken = generateAccessToken(user);
-  res.json({ accessToken });
+    // Verify JWT signature and expiry — reject tampered or expired tokens
+    let payload;
+    try {
+      payload = verifyRefreshToken(token);
+    } catch (err) {
+      // Token is invalid or expired — clear the stored token (token rotation hygiene)
+      user.refreshToken = null;
+      await user.save();
+      return res.sendStatus(403);
+    }
+
+    // Ensure payload matches the user we found
+    if (!payload || payload.id !== user._id.toString()) {
+      user.refreshToken = null;
+      await user.save();
+      return res.sendStatus(403);
+    }
+
+    const accessToken = generateAccessToken(user);
+    res.json({ accessToken });
+  } catch (err) {
+    console.error('Refresh token error', err);
+    return res.sendStatus(500);
+  }
 };
 
 /**
  * LOGOUT
  */
 exports.logout = async (req, res) => {
-  const token = req.cookies.refreshToken;
-  if (token) {
-    await User.updateOne(
-      { refreshToken: token },
-      { $unset: { refreshToken: 1 } }
-    );
-  }
+  try {
+    const token = req.cookies.refreshToken;
+    if (token) {
+      await User.updateOne(
+        { refreshToken: token },
+        { $set: { refreshToken: null } }
+      );
+    }
 
-  res.clearCookie("refreshToken");
-  res.json({ message: "Logged out" });
+    res.clearCookie("refreshToken");
+    res.json({ message: "Logged out" });
+  } catch (err) {
+    console.error('Logout error', err);
+    return res.sendStatus(500);
+  }
 };
