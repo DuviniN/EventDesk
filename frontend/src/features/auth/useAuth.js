@@ -1,0 +1,87 @@
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { setCredentials, logout as logoutAction, selectCurrentUser, selectIsAuthenticated } from './authSlice';
+import { loginUser, registerUser, logoutUser, getCurrentUser } from './authApi';
+import { setAccessToken } from '../../services/axios';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+
+export const useAuth = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const user = useSelector(selectCurrentUser);
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const [loading, setLoading] = useState(false);
+
+  const login = async (credentials) => {
+    setLoading(true);
+    try {
+      const data = await loginUser(credentials);
+      setAccessToken(data.accessToken);
+      dispatch(setCredentials(data));
+      toast.success('Login successful!');
+      navigate('/');
+      return data;
+    } catch (error) {
+      toast.error(error.message || 'Login failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    setLoading(true);
+    try {
+      const data = await registerUser(userData);
+      toast.success('Registration successful! Please login.');
+      navigate('/login');
+      return data;
+    } catch (error) {
+      toast.error(error.message || 'Registration failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await logoutUser();
+      setAccessToken(null);
+      dispatch(logoutAction());
+      toast.success('Logged out successfully');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still logout locally even if server call fails
+      setAccessToken(null);
+      dispatch(logoutAction());
+      navigate('/login');
+    }
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const data = await getCurrentUser();
+      dispatch(setCredentials({ user: data.user, accessToken: localStorage.getItem('accessToken') }));
+      return data.user;
+    } catch (error) {
+      console.error('Fetch user error:', error);
+      logout();
+      throw error;
+    }
+  };
+
+  return {
+    user,
+    isAuthenticated,
+    loading,
+    login,
+    register,
+    logout,
+    fetchCurrentUser,
+  };
+};
+
+export default useAuth;
