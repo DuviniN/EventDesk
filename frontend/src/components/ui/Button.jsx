@@ -5,13 +5,14 @@ export default function Button({
   className = '', 
   ...props 
 }) {
-  const baseStyles = 'font-semibold rounded-lg transition-all duration-200 inline-flex items-center justify-center';
+  const baseStyles = 'font-semibold rounded-lg transition-all duration-200 inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
     primary: 'bg-purple-600 text-white hover:bg-purple-700 shadow-lg hover:shadow-xl',
     secondary: 'bg-white text-purple-600 hover:bg-gray-50 shadow-lg hover:shadow-xl',
     outline: 'border-2 border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white',
-    ghost: 'text-purple-600 hover:bg-purple-50'
+    ghost: 'text-purple-400 hover:text-purple-300 hover:bg-gray-900/50 border border-gray-800 hover:border-gray-700',
+    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-lg hover:shadow-xl'
   };
   
   const sizes = {

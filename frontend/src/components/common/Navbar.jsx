@@ -25,9 +25,14 @@ export default function Navbar() {
               Events
             </Link>
             {isAuthenticated && user?.role === 'organizer' && (
-              <Link to="/dashboard" className="text-gray-300 hover:text-purple-400 transition-colors">
-                Dashboard
-              </Link>
+              <>
+                <Link to="/create-event" className="text-gray-300 hover:text-purple-400 transition-colors">
+                  Create Event
+                </Link>
+                <Link to="/manage-events" className="text-gray-300 hover:text-purple-400 transition-colors">
+                  Manage Events
+                </Link>
+              </>
             )}
             <Link to="/about" className="text-gray-300 hover:text-purple-400 transition-colors">
               About

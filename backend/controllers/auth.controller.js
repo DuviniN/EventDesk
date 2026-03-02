@@ -2,7 +2,8 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const {
   generateAccessToken,
-  generateRefreshToken
+  generateRefreshToken,
+  verifyRefreshToken
 } = require("../utils/jwt");
 const { isEmailValid, passwordStrength } = require("../utils/validators");
 const crypto = require('crypto');
@@ -13,7 +14,7 @@ const RefreshToken = require('../models/RefreshToken');
  */
 exports.register = async (req, res) => {
   try {
-    let { name, email, password, marketingConsent } = req.body || {};
+    let { name, email, password, role, marketingConsent } = req.body || {};
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields: name, email, password' });
@@ -31,6 +32,11 @@ exports.register = async (req, res) => {
     const pwdCheck = passwordStrength(String(password));
     if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
 
+    // Validate role
+    if (role && !['attendee', 'organizer'].includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email already exists' });
@@ -43,10 +49,11 @@ exports.register = async (req, res) => {
       name,
       email,
       passwordHash,
+      role: role || 'attendee',
       marketingConsent
     });
 
-    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name } });
+    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
     console.error('Register error', err);
     return res.status(500).json({ message: 'Server error' });
@@ -168,28 +175,56 @@ exports.resetPassword = async (req, res) => {
  * REFRESH TOKEN
  */
 exports.refreshToken = async (req, res) => {
-  const token = req.cookies.refreshToken;
-  if (!token) return res.sendStatus(401);
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.sendStatus(401);
 
-  const user = await User.findOne({ refreshToken: token });
-  if (!user) return res.sendStatus(403);
+    const user = await User.findOne({ refreshToken: token });
+    if (!user) return res.sendStatus(403);
 
-  const accessToken = generateAccessToken(user);
-  res.json({ accessToken });
+    // Verify JWT signature and expiry — reject tampered or expired tokens
+    let payload;
+    try {
+      payload = verifyRefreshToken(token);
+    } catch (err) {
+      // Token is invalid or expired — clear the stored token (token rotation hygiene)
+      user.refreshToken = null;
+      await user.save();
+      return res.sendStatus(403);
+    }
+
+    // Ensure payload matches the user we found
+    if (!payload || payload.id !== user._id.toString()) {
+      user.refreshToken = null;
+      await user.save();
+      return res.sendStatus(403);
+    }
+
+    const accessToken = generateAccessToken(user);
+    res.json({ accessToken });
+  } catch (err) {
+    console.error('Refresh token error', err);
+    return res.sendStatus(500);
+  }
 };
 
 /**
  * LOGOUT
  */
 exports.logout = async (req, res) => {
-  const token = req.cookies.refreshToken;
-  if (token) {
-    await User.updateOne(
-      { refreshToken: token },
-      { $unset: { refreshToken: 1 } }
-    );
-  }
+  try {
+    const token = req.cookies.refreshToken;
+    if (token) {
+      await User.updateOne(
+        { refreshToken: token },
+        { $set: { refreshToken: null } }
+      );
+    }
 
-  res.clearCookie("refreshToken");
-  res.json({ message: "Logged out" });
+    res.clearCookie("refreshToken");
+    res.json({ message: "Logged out" });
+  } catch (err) {
+    console.error('Logout error', err);
+    return res.sendStatus(500);
+  }
 };
