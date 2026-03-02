@@ -1,68 +1,91 @@
 import { Routes, Route } from "react-router-dom";
+
+// Public page
 import Landing from "../pages/Landing";
-import Login from "../pages/Login";
-import Register from "../pages/Register";
-import Dashboard from "../pages/Dashboard";
-import ForgotPassword from "../pages/ForgotPassword";
-import ResetPassword from "../pages/ResetPassword";
-import CreateEvent from "../pages/CreateEvent";
-import ManageEvents from "../pages/ManageEvents";
-import Events from "../pages/Events";
+
+// Auth pages
+import Login from "../pages/auth/Login";
+import Register from "../pages/auth/Register";
+import ForgotPassword from "../pages/auth/ForgotPassword";
+import ResetPassword from "../pages/auth/ResetPassword";
+
+// Attendee pages
+import AttendeeDashboard from "../pages/attendees/AttendeeDashboard";
+import Events from "../pages/attendees/Events";
+import EventDetail from "../pages/attendees/EventDetail";
+
+// Organizer pages
+import OrganizerDashboard from "../pages/organizers/Dashboard";
+import CreateEvent from "../pages/organizers/CreateEvent";
+import EditEvent from "../pages/organizers/EditEvent";
+import ManageEvents from "../pages/organizers/ManageEvents";
+import ManageTickets from "../pages/organizers/ManageTickets";
+
 import ProtectedRoute from "./ProtectedRoute";
-import EventDetail from "../pages/EventDetail";
-import EditEvent from "../pages/EditEvent";
-import ManageTickets from "../pages/ManageTickets";
 
 
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Public */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } 
-      />
       <Route path="/events" element={<Events />} />
       <Route path="/event/:id" element={<EventDetail />} />
-      <Route 
-        path="/event/:id/manage-tickets" 
+
+      {/* Attendee protected */}
+      <Route
+        path="/attendee-dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="attendee">
+            <AttendeeDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Organizer protected */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute requiredRole="organizer">
+            <OrganizerDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/event/:id/manage-tickets"
+        element={
+          <ProtectedRoute requiredRole="organizer">
             <ManageTickets />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/edit-event/:id" 
+      <Route
+        path="/edit-event/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="organizer">
             <EditEvent />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/create-event" 
+      <Route
+        path="/create-event"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="organizer">
             <CreateEvent />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/manage-events" 
+      <Route
+        path="/manage-events"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="organizer">
             <ManageEvents />
           </ProtectedRoute>
-        } 
+        }
       />
     </Routes>
   );

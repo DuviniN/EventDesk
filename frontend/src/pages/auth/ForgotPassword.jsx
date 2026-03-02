@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { ArrowLeft, Mail } from "lucide-react";
-import { forgotPassword } from "../features/auth/authApi";
+import { forgotPassword } from "../../features/auth/authApi";
 import toast from "react-hot-toast";
 
 export default function ForgotPassword() {

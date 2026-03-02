@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Button from "../components/ui/Button";
+import Button from "../../components/ui/Button";
 import { Plus, Edit2, Trash2, Eye, CheckCircle, AlertCircle } from "lucide-react";
-import { useAuth } from "../features/auth/useAuth";
-import { getOrganizerEvents, publishEvent, cancelEvent, deleteEvent } from "../features/events/eventApi";
+import { useAuth } from "../../features/auth/useAuth";
+import { getOrganizerEvents, publishEvent, cancelEvent, deleteEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
 
 export default function ManageEvents() {

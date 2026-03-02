@@ -1,6 +1,6 @@
-import Navbar from "../components/common/Navbar";
-import Footer from "../components/common/Footer";
-import { useAuth } from "../features/auth/useAuth";
+import Navbar from "../../components/common/Navbar";
+import Footer from "../../components/common/Footer";
+import { useAuth } from "../../features/auth/useAuth";
 
 export default function Dashboard() {
   const { user } = useAuth();

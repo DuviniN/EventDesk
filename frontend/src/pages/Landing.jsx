@@ -1,4 +1,7 @@
 import { Link } from "react-router-dom";
+import { Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { selectIsAuthenticated, selectCurrentUser } from "../features/auth/authSlice";
 import Navbar from "../components/common/Navbar";
 import Footer from "../components/common/Footer";
 import Button from "../components/ui/Button";
@@ -6,6 +9,13 @@ import Card from "../components/ui/Card";
 import { Ticket, TicketCheck, Search, CreditCard, Mail, BarChart3, CheckCircle, Target } from "lucide-react";
 
 export default function Landing() {
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectCurrentUser);
+
+  // Redirect logged-in users straight to their dashboard
+  if (isAuthenticated && user?.role === 'attendee') return <Navigate to="/attendee-dashboard" replace />;
+  if (isAuthenticated && user?.role === 'organizer') return <Navigate to="/dashboard" replace />;
+
   const features = [
     {
       icon: Ticket,
