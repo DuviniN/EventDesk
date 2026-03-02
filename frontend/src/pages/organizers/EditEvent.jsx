@@ -1,16 +1,18 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "../features/auth/useAuth";
-import { createEvent } from "../features/events/eventApi";
+import { useAuth } from "../../features/auth/useAuth";
+import { getEvent, updateEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
 
-export default function CreateEvent() {
+export default function EditEvent() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { user, isAuthenticated } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -22,17 +24,18 @@ export default function CreateEvent() {
       address: "",
       city: ""
     },
-    capacity: ""
+    capacity: "",
+    status: "draft"
   });
   const [errors, setErrors] = useState({});
 
-  // Redirect if not organizer
+  // redirect if not organizer
   if (isAuthenticated && user?.role !== "organizer") {
     return (
       <div className="min-h-screen pt-20 flex items-center justify-center bg-black">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-white mb-4">Access Denied</h1>
-          <p className="text-gray-400 mb-8">Only organizers can create events.</p>
+          <p className="text-gray-400 mb-8">Only organizers can edit events.</p>
           <Button onClick={() => navigate("/")} variant="primary">
             Back to Home
           </Button>
@@ -40,6 +43,41 @@ export default function CreateEvent() {
       </div>
     );
   }
+
+  useEffect(() => {
+    async function fetch() {
+      try {
+        const { event } = await getEvent(id);
+        if (!event) {
+          toast.error('Event not found');
+          navigate('/manage-events');
+          return;
+        }
+        // convert to local form format
+        setFormData({
+          title: event.title || "",
+          description: event.description || "",
+          categories: (event.categories || []).join(", "),
+          startAt: event.startAt ? new Date(event.startAt).toISOString().slice(0,16) : "",
+          endAt: event.endAt ? new Date(event.endAt).toISOString().slice(0,16) : "",
+          venue: {
+            name: event.venue?.name || "",
+            address: event.venue?.address || "",
+            city: event.venue?.city || ""
+          },
+          capacity: event.capacity || "",
+          status: event.status || "draft"
+        });
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load event');
+        navigate('/manage-events');
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetch();
+  }, [id, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -58,7 +96,6 @@ export default function CreateEvent() {
         [name]: value
       }));
     }
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -66,89 +103,69 @@ export default function CreateEvent() {
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.title.trim()) {
-      newErrors.title = 'Event title is required';
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = 'Event description is required';
-    }
-
-    if (!formData.startAt) {
-      newErrors.startAt = 'Start date and time are required';
-    }
-
-    if (!formData.endAt) {
-      newErrors.endAt = 'End date and time are required';
-    }
-
+    if (!formData.title.trim()) newErrors.title = 'Event title is required';
+    if (!formData.description.trim()) newErrors.description = 'Event description is required';
+    if (!formData.startAt) newErrors.startAt = 'Start date and time are required';
+    if (!formData.endAt) newErrors.endAt = 'End date and time are required';
     if (formData.startAt && formData.endAt) {
       const start = new Date(formData.startAt);
       const end = new Date(formData.endAt);
-      if (start >= end) {
-        newErrors.endAt = 'End date must be after start date';
-      }
+      if (start >= end) newErrors.endAt = 'End date must be after start date';
     }
-
-    if (!formData.venue.name.trim()) {
-      newErrors['venue.name'] = 'Venue name is required';
-    }
-
-    if (!formData.venue.address.trim()) {
-      newErrors['venue.address'] = 'Venue address is required';
-    }
-
-    if (!formData.venue.city.trim()) {
-      newErrors['venue.city'] = 'City is required';
-    }
-
-    if (!formData.capacity || parseInt(formData.capacity) <= 0) {
-      newErrors.capacity = 'Capacity must be greater than 0';
-    }
-
+    if (!formData.venue.name.trim()) newErrors['venue.name'] = 'Venue name is required';
+    if (!formData.venue.address.trim()) newErrors['venue.address'] = 'Venue address is required';
+    if (!formData.venue.city.trim()) newErrors['venue.city'] = 'City is required';
+    if (!formData.capacity || parseInt(formData.capacity) <= 0) newErrors.capacity = 'Capacity must be greater than 0';
     return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
-
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const categoriesArray = formData.categories
         .split(',')
         .map(cat => cat.trim())
         .filter(cat => cat);
-
       const eventData = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
         categories: categoriesArray,
+        startAt: formData.startAt,
+        endAt: formData.endAt,
+        venue: formData.venue,
         capacity: parseInt(formData.capacity)
       };
-
-      await createEvent(eventData);
-      toast.success('Event created successfully!');
+      await updateEvent(id, eventData);
+      toast.success('Event updated successfully!');
       navigate('/manage-events');
     } catch (error) {
-      const errorMsg = error.response?.data?.message || error.message || 'Failed to create event';
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to update event';
       toast.error(errorMsg);
       setErrors({ submit: errorMsg });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center bg-black">
+        <div className="text-gray-400">Loading event...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-20 pb-12 bg-black">
       <div className="max-w-4xl mx-auto px-6">
-        {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate('/manage-events')}
@@ -157,19 +174,17 @@ export default function CreateEvent() {
             <ArrowLeft size={20} />
             <span>Back to Events</span>
           </button>
-          <h1 className="text-4xl font-bold text-white mb-2">Create New Event</h1>
-          <p className="text-gray-400">Fill in the details to create your event</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Edit Event</h1>
+          <p className="text-gray-400">Modify your event details below</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6 bg-gray-900/50 border border-gray-800 rounded-xl p-8">
           {errors.submit && (
             <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg text-sm">
               {errors.submit}
             </div>
           )}
-
-          {/* Basic Info */}
+          {/* replicate same fields as CreateEvent with values from formData */}
           <div>
             <h2 className="text-xl font-semibold text-white mb-4">Basic Information</h2>
             <div className="space-y-4">
@@ -213,7 +228,6 @@ export default function CreateEvent() {
               />
             </div>
           </div>
-
           {/* Date & Time */}
           <div>
             <h2 className="text-xl font-semibold text-white mb-4">Date & Time</h2>
@@ -239,7 +253,6 @@ export default function CreateEvent() {
               />
             </div>
           </div>
-
           {/* Venue */}
           <div>
             <h2 className="text-xl font-semibold text-white mb-4">Venue Information</h2>
@@ -254,7 +267,6 @@ export default function CreateEvent() {
                 error={errors['venue.name']}
                 required
               />
-
               <Input
                 label="Address"
                 type="text"
@@ -265,7 +277,6 @@ export default function CreateEvent() {
                 error={errors['venue.address']}
                 required
               />
-
               <Input
                 label="City"
                 type="text"
@@ -278,7 +289,6 @@ export default function CreateEvent() {
               />
             </div>
           </div>
-
           {/* Capacity */}
           <div>
             <h2 className="text-xl font-semibold text-white mb-4">Event Details</h2>
@@ -294,7 +304,6 @@ export default function CreateEvent() {
               min="1"
             />
           </div>
-
           {/* Submit */}
           <div className="pt-6 border-t border-gray-800">
             <Button
@@ -302,9 +311,9 @@ export default function CreateEvent() {
               variant="primary"
               size="lg"
               className="w-full"
-              disabled={loading}
+              disabled={saving}
             >
-              {loading ? 'Creating Event...' : 'Create Event'}
+              {saving ? 'Saving...' : 'Update Event'}
             </Button>
           </div>
         </form>

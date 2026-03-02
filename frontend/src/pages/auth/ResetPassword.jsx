@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { ArrowLeft, CheckCircle } from "lucide-react";
-import { resetPassword } from "../features/auth/authApi";
+import { resetPassword } from "../../features/auth/authApi";
 import toast from "react-hot-toast";
 
 export default function ResetPassword() {

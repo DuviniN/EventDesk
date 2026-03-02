@@ -1,12 +1,30 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const storedUser = localStorage.getItem('user');
+// Parse stored user — if the object is stale (missing role), wipe it so
+// ProtectedRoute never sees an authenticated-but-roleless state.
 const storedToken = localStorage.getItem('accessToken');
+let storedUser = null;
+try {
+  const raw = localStorage.getItem('user');
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.role) {
+      storedUser = parsed;
+    } else {
+      // Stale data — clear it so the user is forced to log in fresh
+      localStorage.removeItem('user');
+      localStorage.removeItem('accessToken');
+    }
+  }
+} catch {
+  localStorage.removeItem('user');
+  localStorage.removeItem('accessToken');
+}
 
 const initialState = {
-  user: storedUser ? JSON.parse(storedUser) : null,
-  token: storedToken || null,
-  isAuthenticated: !!storedToken,
+  user: storedUser || null,
+  token: storedUser ? storedToken : null,
+  isAuthenticated: !!(storedUser && storedToken),
 };
 
 const authSlice = createSlice({
@@ -14,11 +32,15 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     setCredentials: (state, action) => {
-      state.user = action.payload.user;
+      // Ensure role always has a value — Mongoose default is 'attendee'
+      const user = action.payload.user
+        ? { ...action.payload.user, role: action.payload.user.role || 'attendee' }
+        : null;
+      state.user = user;
       state.token = action.payload.accessToken;
       state.isAuthenticated = true;
       
-      localStorage.setItem('user', JSON.stringify(action.payload.user));
+      localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('accessToken', action.payload.accessToken);
     },
     logout: (state) => {

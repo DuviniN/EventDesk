@@ -20,7 +20,13 @@ export const useAuth = () => {
       setAccessToken(data.accessToken);
       dispatch(setCredentials(data));
       toast.success('Login successful!');
-      navigate('/');
+      // setTimeout(0) pushes navigate to the next event-loop tick, guaranteeing
+      // React 19 has committed the Redux state before the new route renders.
+      const role = data.user?.role || 'attendee';
+      setTimeout(() => {
+        if (role === 'organizer') navigate('/dashboard', { replace: true });
+        else navigate('/attendee-dashboard', { replace: true });
+      }, 0);
       return data;
     } catch (error) {
       toast.error(error.message || 'Login failed');

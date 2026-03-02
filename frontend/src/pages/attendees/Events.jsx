@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import Navbar from "../components/common/Navbar";
-import Footer from "../components/common/Footer";
-import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
-import { getPublishedEvents } from "../features/events/eventApi";
+import Navbar from "../../components/common/Navbar";
+import Footer from "../../components/common/Footer";
+import Card from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import { getPublishedEvents } from "../../features/events/eventApi";
 
 export default function Events() {
   const [events, setEvents] = useState([]);

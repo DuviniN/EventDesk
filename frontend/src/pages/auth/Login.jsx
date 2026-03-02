@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { Ticket, BarChart3, Mail } from "lucide-react";
-import { useAuth } from "../features/auth/useAuth";
+import { useAuth } from "../../features/auth/useAuth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,7 +14,6 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
-    
     try {
       await login({ email, password });
     } catch (error) {

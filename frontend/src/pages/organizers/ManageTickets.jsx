@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { getTicketTypes, createTicketType, updateTicketType, deleteTicketType } from '../features/tickets/ticketsApi';
-import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
-import Input from '../components/ui/Input';
+import { getTicketTypes, createTicketType, updateTicketType, deleteTicketType } from '../../features/tickets/ticketsApi';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import Input from '../../components/ui/Input';
 
 const ManageTickets = () => {
   const { id: eventId } = useParams();
