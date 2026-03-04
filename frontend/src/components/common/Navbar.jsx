@@ -5,11 +5,11 @@ import { LogOut, User, LayoutDashboard, Plus, Settings, Ticket, CalendarDays, Za
 // ── Shared Logo ────────────────────────────────────────────────
 function Logo() {
   return (
-    <Link to="/" className="flex items-center gap-2.5 group">
-      <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center shadow-lg shadow-purple-900/50 group-hover:shadow-purple-600/50 transition-shadow duration-300">
-        <Zap size={18} className="text-white" fill="white" />
+    <Link to="/" className="flex items-center gap-3 group">
+      <div className="w-11 h-11 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center shadow-lg shadow-purple-900/50 group-hover:shadow-purple-600/50 transition-shadow duration-300">
+        <Zap size={20} className="text-white" fill="white" />
       </div>
-      <span className="text-white text-xl font-bold tracking-tight">EventDesk</span>
+      <span className="text-white text-2xl font-bold tracking-tight">EventDesk</span>
     </Link>
   );
 }
@@ -32,7 +32,7 @@ function NavLink({ to, icon, children }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/70 transition-all duration-200"
+      className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-base font-medium text-gray-300 hover:text-white hover:bg-gray-800/70 transition-all duration-200"
     >
       {icon}
       {children}
@@ -45,10 +45,10 @@ function UserPill({ name, to = "/profile", showOnMobile = false }) {
   return (
     <Link
       to={to}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-900/80 border border-gray-700/60 hover:border-gray-500 hover:text-white transition-colors ${showOnMobile ? "" : "hidden md:flex"}`}
+      className={`flex items-center gap-2.5 px-4 py-2 rounded-full bg-gray-900/80 border border-gray-700/60 hover:border-gray-500 hover:text-white text-base transition-colors ${showOnMobile ? "" : "hidden md:flex"}`}
     >
-      <User size={14} className="text-purple-400" />
-      <span className="text-gray-300 text-sm font-medium truncate max-w-[120px]">{name}</span>
+      <User size={16} className="text-purple-400" />
+      <span className="text-gray-200 text-sm font-semibold truncate max-w-[140px]">{name}</span>
     </Link>
   );
 }
@@ -59,9 +59,13 @@ function UserPill({ name, to = "/profile", showOnMobile = false }) {
 function AttendeeNavbar({ user, logout }) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-b border-gray-800/60">
-      <div className="max-w-7xl mx-auto px-6 py-3.5">
+      <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
           <Logo />
+          <div className="hidden md:flex items-center gap-2">
+            <NavLink to="/attendee-dashboard" icon={<LayoutDashboard size={15} />}>Dashboard</NavLink>
+            <NavLink to="/events" icon={<Ticket size={15} />}>Events</NavLink>
+          </div>
           <div className="flex items-center gap-3">
             <UserPill name={user?.name} showOnMobile to="/profile" />
             <SignOutButton logout={logout} />
@@ -78,16 +82,16 @@ function AttendeeNavbar({ user, logout }) {
 function OrganizerNavbar({ user, logout }) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-b border-gray-800/60">
-      <div className="max-w-7xl mx-auto px-6 py-3.5">
+      <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
           <Logo />
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2">
             <NavLink to="/dashboard" icon={<LayoutDashboard size={15} />}>Dashboard</NavLink>
             <NavLink to="/create-event" icon={<Plus size={15} />}>Create Event</NavLink>
             <NavLink to="/manage-events" icon={<Settings size={15} />}>Manage Events</NavLink>
             <NavLink to="/organizer/scanner" icon={<QrCode size={15} />}>Scanner</NavLink>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             <UserPill name={user?.name} />
             <SignOutButton logout={logout} />
           </div>

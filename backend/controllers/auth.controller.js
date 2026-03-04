@@ -130,12 +130,12 @@ exports.me = async (req, res) => {
   }
 };
 
-// Update current user profile (name, marketingConsent)
+// Update current user profile (name, marketingConsent, avatarUrl)
 exports.updateProfile = async (req, res) => {
   try {
     if (!req.user || !req.user.id) return res.status(401).json({ message: 'Unauthorized' });
 
-    const { name, marketingConsent } = req.body || {};
+    const { name, marketingConsent, avatarUrl } = req.body || {};
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -150,6 +150,15 @@ exports.updateProfile = async (req, res) => {
 
     if (marketingConsent !== undefined) {
       user.marketingConsent = !!marketingConsent;
+    }
+
+    if (avatarUrl !== undefined) {
+      // Accept data URLs or external URLs; basic length guard to prevent huge payloads
+      const trimmed = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+      if (trimmed && trimmed.length > 500000) {
+        return res.status(400).json({ message: 'Avatar too large' });
+      }
+      user.avatarUrl = trimmed || null;
     }
 
     await user.save();

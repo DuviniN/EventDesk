@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema(
       default: false
     },
 
+    avatarUrl: {
+      type: String,
+      default: null
+    },
+
     passwordResetToken: {
       type: String
     },

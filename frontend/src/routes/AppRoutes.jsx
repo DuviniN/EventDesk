@@ -13,6 +13,7 @@ import ResetPassword from "../pages/auth/ResetPassword";
 import AttendeeDashboard from "../pages/attendees/AttendeeDashboard";
 import Events from "../pages/attendees/Events";
 import EventDetail from "../pages/attendees/EventDetail";
+import Profile from "../pages/attendees/Profile";
 
 // Organizer pages
 import OrganizerDashboard from "../pages/organizers/Dashboard";
@@ -35,6 +36,14 @@ export default function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/events" element={<Events />} />
       <Route path="/event/:id" element={<EventDetail />} />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Attendee protected */}
       <Route
