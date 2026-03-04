@@ -12,6 +12,16 @@ export const getOrganizerEvents = async () => {
   return response.data;
 };
 
+export const getOrganizerOverview = async () => {
+  const response = await axiosInstance.get(`${API_BASE}/organizer/overview`);
+  return response.data;
+};
+
+export const getMyTickets = async () => {
+  const response = await axiosInstance.get(`${API_BASE}/me/tickets`);
+  return response.data;
+};
+
 export const getPublishedEvents = async () => {
   const response = await axiosInstance.get(`${API_BASE}/published`);
   return response.data;

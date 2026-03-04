@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../../features/auth/useAuth";
-import { LogOut, User, LayoutDashboard, Plus, Settings, Ticket, CalendarDays, Zap } from "lucide-react";
+import { LogOut, User, LayoutDashboard, Plus, Settings, Ticket, CalendarDays, Zap, QrCode } from "lucide-react";
 
 // ── Shared Logo ────────────────────────────────────────────────
 function Logo() {
@@ -41,12 +41,15 @@ function NavLink({ to, icon, children }) {
 }
 
 // ── User pill ──────────────────────────────────────────────────
-function UserPill({ name, showOnMobile = false }) {
+function UserPill({ name, to = "/profile", showOnMobile = false }) {
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-900/80 border border-gray-700/60 ${showOnMobile ? "" : "hidden md:flex"}`}>
+    <Link
+      to={to}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-900/80 border border-gray-700/60 hover:border-gray-500 hover:text-white transition-colors ${showOnMobile ? "" : "hidden md:flex"}`}
+    >
       <User size={14} className="text-purple-400" />
       <span className="text-gray-300 text-sm font-medium truncate max-w-[120px]">{name}</span>
-    </div>
+    </Link>
   );
 }
 
@@ -60,7 +63,7 @@ function AttendeeNavbar({ user, logout }) {
         <div className="flex justify-between items-center">
           <Logo />
           <div className="flex items-center gap-3">
-            <UserPill name={user?.name} showOnMobile />
+            <UserPill name={user?.name} showOnMobile to="/profile" />
             <SignOutButton logout={logout} />
           </div>
         </div>
@@ -82,6 +85,7 @@ function OrganizerNavbar({ user, logout }) {
             <NavLink to="/dashboard" icon={<LayoutDashboard size={15} />}>Dashboard</NavLink>
             <NavLink to="/create-event" icon={<Plus size={15} />}>Create Event</NavLink>
             <NavLink to="/manage-events" icon={<Settings size={15} />}>Manage Events</NavLink>
+            <NavLink to="/organizer/scanner" icon={<QrCode size={15} />}>Scanner</NavLink>
           </div>
           <div className="flex items-center gap-3">
             <UserPill name={user?.name} />

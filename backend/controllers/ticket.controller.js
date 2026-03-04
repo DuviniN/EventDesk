@@ -2,6 +2,40 @@ const TicketType = require('../models/TicketType');
 const Ticket = require('../models/Ticket');
 const Event = require('../models/Event');
 const Order = require('../models/Order');
+const User = require('../models/User');
+const sendEmail = require("../utils/sendEmail");
+const QRCode = require('qrcode');
+const jwt = require('jsonwebtoken');
+
+const qrSecret = process.env.QR_SECRET || process.env.ACCESS_TOKEN_SECRET || 'qr-fallback-secret';
+
+const buildQrPayload = (ticket, event) => {
+  return jwt.sign(
+    {
+      tid: ticket._id.toString(),
+      tc: ticket.ticketCode,
+      eid: ticket.eventId.toString(),
+      et: event?.title,
+      email: ticket.attendee?.email
+    },
+    qrSecret,
+    { expiresIn: '365d' }
+  );
+};
+
+const attachQrToTicket = async (ticket, event) => {
+  const qrPayload = buildQrPayload(ticket, event);
+  const qrImage = await QRCode.toDataURL(qrPayload, {
+    margin: 2,
+    scale: 6,
+    errorCorrectionLevel: 'M',
+    color: { dark: '#000000', light: '#ffffff' }
+  });
+  ticket.qrPayload = qrPayload;
+  ticket.qrImage = qrImage;
+  await ticket.save();
+  return { qrPayload, qrImage };
+};
 
 // Create a ticket type (organizer only)
 exports.createTicketType = async (req, res) => {
@@ -106,9 +140,13 @@ exports.purchaseTickets = async (req, res) => {
 
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'No items provided' });
 
+    const event = await Event.findById(eventId).lean();
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
     // basic validation
     const updates = [];
     const orderItems = [];
+    const ticketTypeMeta = [];
     let total = 0;
 
     // Attempt to reserve by incrementing quantitySold atomically per ticketType
@@ -150,8 +188,11 @@ exports.purchaseTickets = async (req, res) => {
       }
 
       orderItems.push({ ticketTypeId: tt._id, quantity: it.quantity, unitPriceMinor: Math.round(tt.price * 100) });
+      ticketTypeMeta.push({ id: tt._id.toString(), name: tt.name, price: tt.price });
       total += Math.round(tt.price * 100) * it.quantity;
     }
+
+    const buyer = await User.findById(buyerId).lean();
 
     // create order (status pending) - payment integration would update status to paid
     const order = await Order.create({ buyerId, eventId, items: orderItems, total, currency: currency || 'USD', status: 'pending' });
@@ -161,14 +202,118 @@ exports.purchaseTickets = async (req, res) => {
     for (const it of orderItems) {
       for (let i = 0; i < it.quantity; i++) {
         const code = `T-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
-        const t = await Ticket.create({ eventId, orderId: order._id, ticketTypeId: it.ticketTypeId, ticketCode: code });
+        const attendee = buyer ? { name: buyer.name, email: buyer.email } : undefined;
+        const t = await Ticket.create({ eventId, orderId: order._id, ticketTypeId: it.ticketTypeId, ticketCode: code, attendee });
+        await attachQrToTicket(t, event);
         createdTickets.push(t);
       }
     }
 
-    res.status(201).json({ message: 'Order created', order, tickets: createdTickets });
+    // Send confirmation email (non-blocking for order success)
+    let emailSent = false;
+    let emailError = null;
+    try {
+      if (buyer && buyer.email) {
+        const ticketSummary = orderItems
+          .map(it => {
+            const meta = ticketTypeMeta.find(m => m.id === it.ticketTypeId.toString());
+            const label = meta?.name ? `${meta.name}` : `${it.ticketTypeId}`;
+            return `- ${it.quantity} x ${label}`;
+          })
+          .join('\n');
+
+        const eventTitle = event ? event.title : 'your event';
+        const startAt = event?.startAt ? new Date(event.startAt).toLocaleString() : null;
+
+        const textBody = [
+          `Hi ${buyer.name || 'there'},`,
+          '',
+          `Your tickets for ${eventTitle} are confirmed.`,
+          startAt ? `Event start: ${startAt}` : null,
+          '',
+          'Order details:',
+          `Order ID: ${order._id.toString()}`,
+          ticketSummary ? 'Items:\n' + ticketSummary : null,
+          'Each ticket has a QR code attached. You can also view them in your profile.',
+        ].filter(Boolean).join('\n');
+
+        const attachments = [];
+        const ticketCardsHtml = createdTickets.map(t => {
+          const label = ticketTypeMeta.find(m => m.id === t.ticketTypeId.toString())?.name || 'Ticket';
+          let imgMarkup = '';
+          if (t.qrImage && t.qrImage.startsWith('data:image')) {
+            const base64 = t.qrImage.split(',')[1];
+            const cid = `qr-${t._id}`;
+            attachments.push({
+              filename: `${t.ticketCode}.png`,
+              content: Buffer.from(base64, 'base64'),
+              cid
+            });
+            imgMarkup = `<img src="cid:${cid}" alt="QR for ${t.ticketCode}" style="margin-top:10px;width:180px;height:180px;object-fit:contain;border-radius:10px;" />`;
+          }
+          return `
+            <div style="padding:12px;border-radius:12px;border:1px solid #1f2937;background:#0b0b0f;color:#e5e7eb;">
+              <div style="font-weight:600;font-size:14px;">${label}</div>
+              <div style="font-size:12px;color:#9ca3af;">Code: ${t.ticketCode}</div>
+              ${imgMarkup}
+            </div>
+          `;
+        }).join('');
+
+        const htmlBody = `
+          <div style="font-family:'Inter',Arial,sans-serif;background:#05060a;padding:20px;color:#e5e7eb;">
+            <h2 style="margin:0 0 6px 0;color:#c084fc;">Your tickets are confirmed</h2>
+            <p style="margin:0 0 8px 0;color:#cbd5e1;">${eventTitle}${startAt ? ` • ${startAt}` : ''}</p>
+            <p style="margin:0 0 12px 0;color:#94a3b8;">Order ID: ${order._id.toString()}</p>
+            ${ticketSummary ? `<p style="margin:0 0 12px 0;white-space:pre-line;color:#cbd5e1;">${ticketSummary}</p>` : ''}
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">${ticketCardsHtml}</div>
+            <p style="margin-top:12px;color:#94a3b8;">You can also open your EventDesk profile to access these codes at any time.</p>
+          </div>
+        `;
+
+        await sendEmail(buyer.email, `Your tickets for ${eventTitle}`, { text: textBody, html: htmlBody, attachments });
+        emailSent = true;
+      }
+    } catch (err) {
+      console.error('purchaseTickets email error:', err);
+      emailError = 'Confirmation email could not be sent';
+    }
+
+    res.status(201).json({
+      message: emailSent ? 'Order created. Check your email for confirmation.' : 'Order created. Email confirmation pending.',
+      order,
+      tickets: createdTickets,
+      emailSent,
+      emailError
+    });
   } catch (err) {
     console.error('purchaseTickets error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Attendee: list own tickets and counts
+exports.getMyTickets = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const orders = await Order.find({ buyerId: userId }).select('_id eventId createdAt').lean();
+    if (!orders.length) return res.json({ tickets: [], counts: { tickets: 0, events: 0 } });
+
+    const orderIds = orders.map(o => o._id);
+    const eventIds = [...new Set(orders.map(o => o.eventId.toString()))];
+
+    const tickets = await Ticket.find({ orderId: { $in: orderIds } })
+      .populate('eventId', 'title startAt endAt venue')
+      .populate('ticketTypeId', 'name price')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      tickets,
+      counts: { tickets: tickets.length, events: eventIds.length }
+    });
+  } catch (err) {
+    console.error('getMyTickets error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -205,5 +350,74 @@ exports.getTicketsForEvent = async (req, res) => {
   } catch (err) {
     console.error('getTicketsForEvent error:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Organizer: scan/verify a ticket QR payload
+exports.scanTicket = async (req, res) => {
+  try {
+    const { qr } = req.body || {};
+    if (!qr) return res.status(400).json({ message: 'QR payload is required' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(qr, qrSecret);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired QR code' });
+    }
+
+    const ticket = await Ticket.findById(decoded.tid)
+      .populate('eventId', 'title startAt endAt venue organizerId')
+      .populate('ticketTypeId', 'name price')
+      .populate('orderId', 'createdAt buyerId');
+
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (!ticket.eventId || ticket.eventId.organizerId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized for this event' });
+    }
+
+    return res.json({
+      ticket: {
+        id: ticket._id,
+        code: ticket.ticketCode,
+        status: ticket.status,
+        createdAt: ticket.createdAt,
+        checkedInAt: ticket.checkedInAt,
+        attendee: ticket.attendee,
+        event: ticket.eventId,
+        ticketType: ticket.ticketTypeId,
+        orderId: ticket.orderId?._id,
+      }
+    });
+  } catch (err) {
+    console.error('scanTicket error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const createBooking = async (req, res) => {
+  try {
+    const { name, email, eventName } = req.body;
+
+    const newBooking = await Booking.create({
+      name,
+      email,
+      eventName,
+    });
+
+    // Send confirmation email
+    await sendEmail(
+      email,
+      "Event Booking Confirmation",
+      `Hi ${name},
+      
+Your ticket for ${eventName} has been successfully booked!
+
+Thank you for booking with us.`
+    );
+
+    res.status(201).json(newBooking);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

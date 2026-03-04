@@ -31,3 +31,8 @@ export const purchaseTickets = async (eventId, payload) => {
   const res = await axiosInstance.post(`${API_BASE}/${eventId}/tickets/purchase`, payload);
   return res.data;
 };
+
+export const scanTicketQr = async (qr) => {
+  const res = await axiosInstance.post(`${API_BASE}/tickets/scan`, { qr });
+  return res.data;
+};

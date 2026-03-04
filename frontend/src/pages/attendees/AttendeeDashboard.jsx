@@ -23,6 +23,16 @@ function formatVenue(venue) {
   return String(venue);
 }
 
+function toLocalDateInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 // ── Event Card ─────────────────────────────────────────────────
 function EventCard({ event }) {
   const dateObj = event.startAt ? new Date(event.startAt) : null;
@@ -108,7 +118,10 @@ export default function AttendeeDashboard() {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
     getPublishedEvents()
@@ -117,13 +130,40 @@ export default function AttendeeDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = events.filter(
-    (e) =>
-      !searchQuery ||
-      e.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      formatVenue(e.venue).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  const categories = [...new Set(events.map((e) => e.category).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
   );
+
+  const locations = [
+    ...new Set(
+      events
+        .map((e) => (typeof e.venue === "object" ? e.venue?.city || formatVenue(e.venue) : formatVenue(e.venue)))
+        .filter(Boolean)
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const filtered = events.filter((event) => {
+    const keywordLower = keyword.toLowerCase();
+    const title = event.title?.toLowerCase() || "";
+    const description = event.description?.toLowerCase() || "";
+    const category = event.category?.toLowerCase() || "";
+    const venue = formatVenue(event.venue).toLowerCase();
+
+    const matchesKeyword =
+      !keyword ||
+      title.includes(keywordLower) ||
+      description.includes(keywordLower) ||
+      category.includes(keywordLower) ||
+      venue.includes(keywordLower);
+
+    const matchesCategory = !categoryFilter || event.category === categoryFilter;
+    const matchesLocation = !locationFilter || venue.includes(locationFilter.toLowerCase());
+    const matchesDate = !dateFilter || toLocalDateInputValue(event.startAt) === dateFilter;
+
+    return matchesKeyword && matchesCategory && matchesLocation && matchesDate;
+  });
+
+  const hasActiveFilters = Boolean(keyword || categoryFilter || locationFilter || dateFilter);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -169,15 +209,50 @@ export default function AttendeeDashboard() {
       <div className="pb-24 px-6">
         <div className="max-w-7xl mx-auto">
 
-          {/* Search bar */}
-          <div className="relative mb-8 max-w-lg">
+          {/* Discovery filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+            <div className="relative md:col-span-2 lg:col-span-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               type="text"
-              placeholder="Search events by name, venue or category…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search keywords…"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
               className="w-full bg-gray-900/80 border border-gray-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:bg-gray-900 transition-all duration-200"
+            />
+          </div>
+
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full bg-gray-900/80 border border-gray-700/80 rounded-xl px-3 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="w-full bg-gray-900/80 border border-gray-700/80 rounded-xl px-3 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="">All Locations</option>
+              {locations.map((location) => (
+                <option key={location} value={location}>
+                  {location}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="w-full bg-gray-900/80 border border-gray-700/80 rounded-xl px-3 py-3 text-sm text-white focus:outline-none focus:border-purple-500"
             />
           </div>
 
@@ -194,19 +269,24 @@ export default function AttendeeDashboard() {
                 <CalendarDays size={28} className="text-gray-700" />
               </div>
               <h3 className="text-white font-semibold text-lg mb-1">
-                {searchQuery ? "No events found" : "No events available"}
+                {hasActiveFilters ? "No matching events" : "No events available"}
               </h3>
               <p className="text-gray-500 text-sm max-w-xs">
-                {searchQuery
-                  ? `No events match "${searchQuery}". Try a different search.`
+                {hasActiveFilters
+                  ? "Try changing your category, location, date, or keyword filters."
                   : "Check back soon — new events are added regularly."}
               </p>
-              {searchQuery && (
+              {hasActiveFilters && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => {
+                    setKeyword("");
+                    setCategoryFilter("");
+                    setLocationFilter("");
+                    setDateFilter("");
+                  }}
                   className="mt-4 text-sm text-purple-400 hover:text-purple-300 transition-colors"
                 >
-                  Clear search
+                  Clear all filters
                 </button>
               )}
             </div>

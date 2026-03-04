@@ -1,11 +1,17 @@
+const mongoose = require("mongoose");
 const Event = require("../models/Event");
+const Order = require("../models/Order");
+const TicketType = require("../models/TicketType");
+const User = require("../models/User");
+const Email = require("../models/Email");
+const sendEmail = require("../utils/sendEmail");
 
 /**
  * CREATE EVENT
  */
 exports.createEvent = async (req, res) => {
   try {
-    const { title, description, categories, startAt, endAt, venue, capacity } = req.body;
+    const { title, description, categories, startAt, endAt, venue, capacity, status } = req.body;
     const organizerId = req.user.id;
 
     if (!title) {
@@ -32,6 +38,8 @@ exports.createEvent = async (req, res) => {
       return res.status(400).json({ message: 'Event capacity must be greater than 0' });
     }
 
+    const initialStatus = ['draft', 'published'].includes(status) ? status : 'published';
+
     const event = await Event.create({
       organizerId,
       title: String(title).trim(),
@@ -41,11 +49,13 @@ exports.createEvent = async (req, res) => {
       endAt: new Date(endAt),
       venue,
       capacity: parseInt(capacity),
-      status: 'draft'
+      status: initialStatus
     });
 
     res.status(201).json({
-      message: 'Event created successfully',
+      message: initialStatus === 'published'
+        ? 'Event created and published successfully'
+        : 'Event created successfully',
       event
     });
   } catch (err) {
@@ -66,6 +76,79 @@ exports.getOrganizerEvents = async (req, res) => {
     res.json({ events });
   } catch (err) {
     console.error('Get organizer events error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Organizer dashboard overview: totals, sold counts, revenue, upcoming/recent
+exports.getOrganizerOverview = async (req, res) => {
+  try {
+    const organizerId = req.user.id;
+
+    const events = await Event.find({ organizerId }).sort({ createdAt: -1 }).lean();
+    const eventIds = events.map(e => e._id);
+
+    if (!eventIds.length) {
+      return res.json({
+        totals: { total: 0, draft: 0, published: 0, cancelled: 0 },
+        sales: { ticketsSold: 0, revenueMinor: 0, revenue: 0 },
+        upcoming: [],
+        recent: [],
+        events: []
+      });
+    }
+
+    const [statusBuckets, upcoming, recent, salesAgg] = await Promise.all([
+      Event.aggregate([
+        { $match: { organizerId: new mongoose.Types.ObjectId(organizerId) } },
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      Event.find({ organizerId, startAt: { $gte: new Date() } })
+        .sort({ startAt: 1 })
+        .limit(5)
+        .lean(),
+      Event.find({ organizerId })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      TicketType.aggregate([
+        { $match: { eventId: { $in: eventIds } } },
+        {
+          $group: {
+            _id: null,
+            ticketsSold: { $sum: '$quantitySold' },
+            revenueMinor: { $sum: { $multiply: ['$quantitySold', '$price', 100] } }
+          }
+        }
+      ])
+    ]);
+
+    const statusCounts = { draft: 0, published: 0, cancelled: 0 };
+    statusBuckets.forEach(b => {
+      if (statusCounts[b._id] !== undefined) statusCounts[b._id] = b.count;
+    });
+    const total = statusBuckets.reduce((sum, b) => sum + b.count, 0);
+
+    const sales = salesAgg[0] || { ticketsSold: 0, revenueMinor: 0 };
+
+    res.json({
+      totals: {
+        total,
+        draft: statusCounts.draft,
+        published: statusCounts.published,
+        cancelled: statusCounts.cancelled
+      },
+      sales: {
+        ticketsSold: sales.ticketsSold || 0,
+        revenueMinor: sales.revenueMinor || 0,
+        revenue: ((sales.revenueMinor || 0) / 100).toFixed(2)
+      },
+      upcoming,
+      recent,
+      events
+    });
+  } catch (err) {
+    console.error('Get organizer overview error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -108,9 +191,9 @@ exports.updateEvent = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this event' });
     }
 
-    // Only allow draft events to be updated
-    if (event.status !== 'draft') {
-      return res.status(400).json({ message: 'Only draft events can be updated' });
+    // Prevent updates on cancelled events
+    if (event.status === 'cancelled') {
+      return res.status(400).json({ message: 'Cancelled events cannot be updated' });
     }
 
     if (title) event.title = String(title).trim();
@@ -248,6 +331,85 @@ exports.getAllPublishedEvents = async (req, res) => {
     res.json({ events });
   } catch (err) {
     console.error('Get published events error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Organizer: send reminder emails for events happening tomorrow
+exports.sendTomorrowReminders = async (req, res) => {
+  try {
+    const organizerId = req.user.id;
+
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() + 1);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1);
+
+    const events = await Event.find({
+      organizerId,
+      status: 'published',
+      startAt: { $gte: start, $lt: end }
+    }).lean();
+
+    if (!events.length) {
+      return res.json({ message: 'No published events happening tomorrow for this organizer', sent: 0 });
+    }
+
+    let sentCount = 0;
+
+    for (const evt of events) {
+      const orders = await Order.find({
+        eventId: evt._id,
+        status: { $nin: ['failed', 'cancelled', 'refunded'] }
+      }).select('buyerId').lean();
+
+      const buyerIds = [...new Set(orders.map(o => o.buyerId?.toString()).filter(Boolean))];
+      if (!buyerIds.length) continue;
+
+      const users = await User.find({ _id: { $in: buyerIds } }).select('name email').lean();
+
+      for (const u of users) {
+        if (!u.email) continue;
+
+        const already = await Email.findOne({ type: 'event_reminder', userId: u._id, eventId: evt._id });
+        if (already) continue;
+
+        const startLocal = evt.startAt ? new Date(evt.startAt).toLocaleString() : '';
+        const venueStr = evt.venue?.name ? `${evt.venue.name}${evt.venue.city ? ' — ' + evt.venue.city : ''}` : '';
+
+        const textBody = [
+          `Hi ${u.name || 'there'},`,
+          '',
+          `Reminder: ${evt.title} is happening tomorrow.`,
+          startLocal ? `Starts: ${startLocal}` : null,
+          venueStr ? `Venue: ${venueStr}` : null,
+          '',
+          'Show your QR ticket in your profile at entry.',
+          'See you there!'
+        ].filter(Boolean).join('\n');
+
+        const htmlBody = `
+          <div style="font-family:'Inter',Arial,sans-serif;background:#0b0c10;padding:20px;color:#e5e7eb;">
+            <h2 style="margin:0 0 6px 0;color:#c084fc;">Reminder for tomorrow</h2>
+            <p style="margin:0 0 8px 0;color:#cbd5e1;">${evt.title}</p>
+            ${startLocal ? `<p style="margin:0 0 4px 0;color:#cbd5e1;">Starts: ${startLocal}</p>` : ''}
+            ${venueStr ? `<p style="margin:0 0 10px 0;color:#94a3b8;">${venueStr}</p>` : ''}
+            <p style="margin:0 0 0 0;color:#94a3b8;">Bring your QR ticket (Profile → Tickets) for entry.</p>
+          </div>
+        `;
+
+        await sendEmail(u.email, `Reminder: ${evt.title} is tomorrow`, { text: textBody, html: htmlBody });
+        await Email.create({ type: 'event_reminder', to: u.email, userId: u._id, eventId: evt._id, status: 'sent', sentAt: new Date() });
+        sentCount += 1;
+      }
+    }
+
+    res.json({ message: 'Reminders processed', sent: sentCount });
+  } catch (err) {
+    console.error('sendTomorrowReminders error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
