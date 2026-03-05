@@ -89,6 +89,15 @@ function TicketCard({ ticket }) {
             <Download size={16} /> Download QR
           </a>
         ) : null}
+        {ticket.qrImage ? (
+          <button
+            type="button"
+            onClick={() => window.open(ticket.qrImage, "_blank", "noopener")}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3.5 py-2 text-sm font-medium text-gray-200 transition hover:border-gray-500 hover:text-white"
+          >
+            <QrCode size={16} /> Open large QR
+          </button>
+        ) : null}
         {ticket.qrPayload ? (
           <button
             type="button"

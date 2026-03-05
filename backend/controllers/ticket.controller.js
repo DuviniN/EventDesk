@@ -25,16 +25,51 @@ const buildQrPayload = (ticket, event) => {
 
 const attachQrToTicket = async (ticket, event) => {
   const qrPayload = buildQrPayload(ticket, event);
-  const qrImage = await QRCode.toDataURL(qrPayload, {
-    margin: 2,
-    scale: 6,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#000000', light: '#ffffff' }
+
+  // Make the QR human-readable when scanned by phone camera/Lens (no auto-redirect),
+  // but still include the token for organizer scanners.
+  const lines = [
+    'EventDesk Ticket',
+    `Name: ${ticket.attendee?.name || 'Guest'}`,
+    `Email: ${ticket.attendee?.email || 'N/A'}`,
+    `Event: ${event?.title || 'Event'}`,
+    event?.startAt ? `When: ${new Date(event.startAt).toLocaleString()}` : null,
+    event?.venue?.city || event?.venue?.name ? `Venue: ${[event.venue?.name, event.venue?.city].filter(Boolean).join(', ')}` : null,
+    `Code: ${ticket.ticketCode}`,
+    `Status: ${ticket.status || 'valid'}`,
+    `token:${qrPayload}`,
+    'Organizer: use token in scanner',
+  ].filter(Boolean);
+
+  const qrContent = lines.join('\n');
+
+  const qrImage = await QRCode.toDataURL(qrContent, {
+    margin: 4,
+    scale: 10,
+    errorCorrectionLevel: 'H',
+    color: { dark: '#000000', light: '#ffffff' },
+    type: 'image/png'
   });
-  ticket.qrPayload = qrPayload;
-  ticket.qrImage = qrImage;
+
+  ticket.qrPayload = qrPayload; // raw token retained for secure verification
+  ticket.qrImage = qrImage;     // image carries readable details + token line
   await ticket.save();
   return { qrPayload, qrImage };
+};
+
+const extractQrToken = (qrInput) => {
+  if (!qrInput) return null;
+  try {
+    const url = new URL(qrInput);
+    const qp = url.searchParams.get('qr');
+    if (qp) return qp;
+  } catch (err) {
+    /* not a URL, fall through */
+  }
+  // Try to extract from token:xxxx pattern in text payload
+  const tokenMatch = qrInput.match(/token[:=]\s*([A-Za-z0-9._-]+)/i);
+  if (tokenMatch && tokenMatch[1]) return tokenMatch[1];
+  return qrInput;
 };
 
 // Create a ticket type (organizer only)
@@ -359,9 +394,10 @@ exports.scanTicket = async (req, res) => {
     const { qr } = req.body || {};
     if (!qr) return res.status(400).json({ message: 'QR payload is required' });
 
+    const token = extractQrToken(qr);
     let decoded;
     try {
-      decoded = jwt.verify(qr, qrSecret);
+      decoded = jwt.verify(token, qrSecret);
     } catch (err) {
       return res.status(400).json({ message: 'Invalid or expired QR code' });
     }
@@ -391,6 +427,43 @@ exports.scanTicket = async (req, res) => {
     });
   } catch (err) {
     console.error('scanTicket error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Public verification: used when a phone camera (e.g., Google Lens) opens the QR URL
+exports.verifyTicketPublic = async (req, res) => {
+  try {
+    const token = extractQrToken(req.query.qr);
+    if (!token) return res.status(400).json({ message: 'QR payload is required' });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, qrSecret);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired QR code' });
+    }
+
+    const ticket = await Ticket.findById(decoded.tid)
+      .populate('eventId', 'title startAt endAt venue organizerId')
+      .populate('ticketTypeId', 'name price')
+      .populate('orderId', 'createdAt buyerId');
+
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    return res.json({
+      ticket: {
+        id: ticket._id,
+        code: ticket.ticketCode,
+        status: ticket.status,
+        attendee: ticket.attendee,
+        event: ticket.eventId,
+        ticketType: ticket.ticketTypeId,
+        orderId: ticket.orderId?._id,
+      }
+    });
+  } catch (err) {
+    console.error('verifyTicketPublic error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };

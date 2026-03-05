@@ -13,6 +13,7 @@ import ResetPassword from "../pages/auth/ResetPassword";
 import AttendeeDashboard from "../pages/attendees/AttendeeDashboard";
 import Events from "../pages/attendees/Events";
 import EventDetail from "../pages/attendees/EventDetail";
+import VerifyTicket from "../pages/attendees/VerifyTicket";
 import Profile from "../pages/attendees/Profile";
 
 // Organizer pages
@@ -21,6 +22,7 @@ import CreateEvent from "../pages/organizers/CreateEvent";
 import EditEvent from "../pages/organizers/EditEvent";
 import ManageEvents from "../pages/organizers/ManageEvents";
 import ManageTickets from "../pages/organizers/ManageTickets";
+import Scanner from "../pages/organizers/Scanner";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -36,6 +38,7 @@ export default function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/events" element={<Events />} />
       <Route path="/event/:id" element={<EventDetail />} />
+      <Route path="/ticket/verify" element={<VerifyTicket />} />
       <Route
         path="/profile"
         element={
@@ -69,6 +72,14 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="organizer">
             <ManageTickets />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/organizer/scanner"
+        element={
+          <ProtectedRoute requiredRole="organizer">
+            <Scanner />
           </ProtectedRoute>
         }
       />

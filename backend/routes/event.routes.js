@@ -15,6 +15,9 @@ router.get("/me/tickets", auth(), ticketController.getMyTickets);
 // Organizer: scan QR payload to fetch ticket details
 router.post("/tickets/scan", auth(["organizer"]), ticketController.scanTicket);
 
+// Public: verify ticket details via QR URL (for Google Lens / phone cameras)
+router.get("/tickets/verify", ticketController.verifyTicketPublic);
+
 // Ticket listings (public/organizer)
 router.get("/:eventId/tickets", ticketController.getTicketsForEvent);
 
