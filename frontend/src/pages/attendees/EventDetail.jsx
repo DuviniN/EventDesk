@@ -28,6 +28,29 @@ function formatVenue(venue) {
   return String(venue);
 }
 
+const CATEGORY_LABELS = {
+  concert: "Concert",
+  theatre: "Theatre",
+  family: "Family",
+  other: "Other"
+};
+
+const TIER_LABELS = {
+  "vip": "VIP",
+  "premium": "Premium",
+  "regular": "Regular",
+  "early-bird": "Early Bird",
+  "student": "Student Ticket"
+};
+
+const normalizeCategory = (value = "") => value.toString().trim().toLowerCase();
+
+const getPrimaryCategory = (event) => {
+  if (!event) return "";
+  if (Array.isArray(event.categories) && event.categories.length) return event.categories[0];
+  return event.category || "";
+};
+
 // ── Quantity stepper ───────────────────────────────────────────
 function Stepper({ value, min = 0, max = 10, onChange }) {
   return (
@@ -179,12 +202,58 @@ export default function EventDetail() {
     ? endDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
     : "";
 
+  const primaryCategory = getPrimaryCategory(event);
+  const displayCategory = CATEGORY_LABELS[normalizeCategory(primaryCategory)] || primaryCategory;
+  const imageSrc = event.imageUrl || "https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?auto=format&fit=crop&w=1600&q=80";
+
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
 
       <div className="pt-24 pb-20 px-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
+
+          {/* Hero image */}
+          <div className="relative overflow-hidden rounded-3xl border border-gray-800 mb-10 shadow-2xl shadow-black/40">
+            <div className="h-72 sm:h-80 md:h-96 w-full">
+              <img
+                src={imageSrc}
+                alt={event.title}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/15 to-black/65" />
+            </div>
+            <div className="absolute inset-0 flex items-end p-6 sm:p-8">
+              <div className="space-y-3">
+                {displayCategory && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-purple-600/80 text-white text-xs font-semibold border border-purple-400/60 shadow-lg shadow-purple-900/40">
+                    {displayCategory}
+                  </span>
+                )}
+                <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg max-w-3xl">
+                  {event.title}
+                </h1>
+                <div className="flex flex-wrap gap-3 text-sm text-gray-200 drop-shadow">
+                  {formattedDate && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                      <CalendarDays size={15} /> {formattedDate}
+                    </span>
+                  )}
+                  {(formattedTime || formattedEnd) && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                      <Clock size={15} /> {formattedTime}{formattedEnd ? ` – ${formattedEnd}` : ""}
+                    </span>
+                  )}
+                  {event.venue && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                      <MapPin size={15} /> {formatVenue(event.venue)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Back button */}
           <button
@@ -246,12 +315,12 @@ export default function EventDetail() {
                     </div>
                   </div>
                 )}
-                {event.category && (
+                {displayCategory && (
                   <div className="flex items-start gap-3 bg-gray-900/60 rounded-xl p-3.5 border border-gray-800">
                     <Tag size={18} className="text-purple-400 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500 mb-0.5 font-medium">Category</p>
-                      <p className="text-white text-sm font-medium">{event.category}</p>
+                      <p className="text-white text-sm font-medium">{displayCategory}</p>
                     </div>
                   </div>
                 )}
@@ -296,6 +365,7 @@ export default function EventDetail() {
                       ? tt.remaining
                       : Math.max(0, (tt.quantityTotal || 0) - (tt.quantitySold || 0));
                     const maxQty = Math.min(tt.maxPerOrder || 10, remaining);
+                    const tierLabel = TIER_LABELS[tt.tier] || "Regular";
 
                     return (
                       <div
@@ -303,8 +373,11 @@ export default function EventDetail() {
                         className="bg-black/40 rounded-xl border border-gray-800 p-4 space-y-3"
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-semibold text-sm truncate">{tt.name}</p>
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2.5 py-1 rounded-full text-[11px] uppercase tracking-wide font-semibold bg-purple-500/10 text-purple-200 border border-purple-500/20">{tierLabel}</span>
+                              <p className="text-white font-semibold text-sm truncate">{tt.name}</p>
+                            </div>
                             {tt.description && (
                               <p className="text-gray-500 text-xs mt-0.5 line-clamp-2">{tt.description}</p>
                             )}

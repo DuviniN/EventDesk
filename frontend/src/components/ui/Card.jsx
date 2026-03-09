@@ -1,8 +1,8 @@
 export default function Card({ children, className = '', hover = false }) {
   return (
     <div 
-      className={`bg-gray-900 rounded-xl p-6 border border-gray-800 ${
-        hover ? 'hover:border-purple-600 hover:shadow-2xl hover:shadow-purple-600/20 transition-all duration-300' : ''
+      className={`bg-white rounded-xl p-6 border border-[#6a317f]/25 shadow-sm ${
+        hover ? 'hover:border-[#6a317f] hover:shadow-lg hover:shadow-[#6a317f]/25 transition-all duration-300' : ''
       } ${className}`}
     >
       {children}

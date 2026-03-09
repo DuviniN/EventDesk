@@ -1,4 +1,5 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 // Public page
 import Landing from "../pages/Landing";
@@ -15,6 +16,7 @@ import Events from "../pages/attendees/Events";
 import EventDetail from "../pages/attendees/EventDetail";
 import VerifyTicket from "../pages/attendees/VerifyTicket";
 import Profile from "../pages/attendees/Profile";
+import CheckIn from "../pages/public/CheckIn";
 
 // Organizer pages
 import OrganizerDashboard from "../pages/organizers/Dashboard";
@@ -22,12 +24,19 @@ import CreateEvent from "../pages/organizers/CreateEvent";
 import EditEvent from "../pages/organizers/EditEvent";
 import ManageEvents from "../pages/organizers/ManageEvents";
 import ManageTickets from "../pages/organizers/ManageTickets";
-import Scanner from "../pages/organizers/Scanner";
+import Attendees from "../pages/organizers/Attendees";
+import AllAttendees from "../pages/organizers/AllAttendees";
 
 import ProtectedRoute from "./ProtectedRoute";
+import { selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSlice";
 
 
 export default function AppRoutes() {
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const user = useSelector(selectCurrentUser);
+
+  const isAttendee = isAuthenticated && user?.role === "attendee";
+
   return (
     <Routes>
       {/* Public */}
@@ -36,7 +45,12 @@ export default function AppRoutes() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/events" element={<Events />} />
+      <Route path="/check-in" element={<CheckIn />} />
+      <Route path="/check-in/:eventId" element={<CheckIn />} />
+      <Route
+        path="/events"
+        element={isAttendee ? <Navigate to="/attendee-dashboard" replace /> : <Events />}
+      />
       <Route path="/event/:id" element={<EventDetail />} />
       <Route path="/ticket/verify" element={<VerifyTicket />} />
       <Route
@@ -68,6 +82,14 @@ export default function AppRoutes() {
         }
       />
       <Route
+        path="/organizer/attendees"
+        element={
+          <ProtectedRoute requiredRole="organizer">
+            <AllAttendees />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/event/:id/manage-tickets"
         element={
           <ProtectedRoute requiredRole="organizer">
@@ -76,10 +98,10 @@ export default function AppRoutes() {
         }
       />
       <Route
-        path="/organizer/scanner"
+        path="/event/:id/attendees"
         element={
           <ProtectedRoute requiredRole="organizer">
-            <Scanner />
+            <Attendees />
           </ProtectedRoute>
         }
       />

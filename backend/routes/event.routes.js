@@ -8,9 +8,18 @@ router.post("/", auth(["organizer"]), eventController.createEvent);
 router.get("/organizer/list", auth(["organizer"]), eventController.getOrganizerEvents);
 router.get("/organizer/overview", auth(["organizer"]), eventController.getOrganizerOverview);
 router.post("/organizer/reminders/run", auth(["organizer"]), eventController.sendTomorrowReminders);
+router.get("/organizer/attendees", auth(["organizer"]), ticketController.getOrganizerAttendees);
+
+// Organizer: set per-event check-in code
+router.post("/:id/checkin/code", auth(["organizer"]), eventController.setCheckInCode);
 
 // Attendee: my tickets (must come before dynamic :eventId routes)
 router.get("/me/tickets", auth(), ticketController.getMyTickets);
+
+// Public check-in flow (code verify + QR scan) — kept before :eventId catchalls
+router.post("/checkin/verify", ticketController.verifyCheckInCodePublicAny);
+router.post("/:eventId/checkin/verify", ticketController.verifyCheckInCodePublic);
+router.post("/:eventId/checkin/scan", ticketController.scanTicketWithCode);
 
 // Organizer: scan QR payload to fetch ticket details
 router.post("/tickets/scan", auth(["organizer"]), ticketController.scanTicket);
@@ -18,8 +27,8 @@ router.post("/tickets/scan", auth(["organizer"]), ticketController.scanTicket);
 // Public: verify ticket details via QR URL (for Google Lens / phone cameras)
 router.get("/tickets/verify", ticketController.verifyTicketPublic);
 
-// Ticket listings (public/organizer)
-router.get("/:eventId/tickets", ticketController.getTicketsForEvent);
+// Ticket listings for organizers (attendee list)
+router.get("/:eventId/tickets", auth(["organizer"]), ticketController.getTicketsForEvent);
 
 // Purchase tickets (authenticated users)
 router.post("/:eventId/tickets/purchase", auth(), ticketController.purchaseTickets);

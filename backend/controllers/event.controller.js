@@ -1,17 +1,24 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const Event = require("../models/Event");
 const Order = require("../models/Order");
 const TicketType = require("../models/TicketType");
 const User = require("../models/User");
 const Email = require("../models/Email");
 const sendEmail = require("../utils/sendEmail");
+const bcrypt = require("bcryptjs");
+
+const generateCheckInCode = () => {
+  // 6-digit numeric code for quick sharing; collision risk is minimal per event creation
+  return crypto.randomInt(100000, 999999).toString();
+};
 
 /**
  * CREATE EVENT
  */
 exports.createEvent = async (req, res) => {
   try {
-    const { title, description, categories, startAt, endAt, venue, capacity, status } = req.body;
+    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity, status } = req.body;
     const organizerId = req.user.id;
 
     if (!title) {
@@ -40,23 +47,31 @@ exports.createEvent = async (req, res) => {
 
     const initialStatus = ['draft', 'published'].includes(status) ? status : 'published';
 
+    const checkInCode = generateCheckInCode();
+    const checkInCodeHash = await bcrypt.hash(checkInCode, 10);
+
     const event = await Event.create({
       organizerId,
       title: String(title).trim(),
       description: description ? String(description).trim() : '',
+      imageUrl: imageUrl ? String(imageUrl).trim() : '',
       categories: categories || [],
       startAt: new Date(startAt),
       endAt: new Date(endAt),
       venue,
       capacity: parseInt(capacity),
-      status: initialStatus
+      status: initialStatus,
+      checkInCodeHash,
+      checkInCodePlain: checkInCode,
+      checkInCodeUpdatedAt: new Date()
     });
 
     res.status(201).json({
       message: initialStatus === 'published'
         ? 'Event created and published successfully'
         : 'Event created successfully',
-      event
+      event,
+      checkInCode
     });
   } catch (err) {
     console.error('Create event error:', err);
@@ -71,9 +86,18 @@ exports.getOrganizerEvents = async (req, res) => {
   try {
     const organizerId = req.user.id;
 
-    const events = await Event.find({ organizerId }).sort({ createdAt: -1 });
+    const events = await Event.find({ organizerId }).sort({ createdAt: -1 }).lean();
 
-    res.json({ events });
+    const sanitized = events.map(evt => {
+      const obj = { ...evt };
+      obj.checkInCode = evt.checkInCodePlain || null;
+      delete obj.checkInCodeHash;
+      delete obj.checkInCodePlain;
+      delete obj.checkInCodeUpdatedAt;
+      return obj;
+    });
+
+    res.json({ events: sanitized });
   } catch (err) {
     console.error('Get organizer events error:', err);
     return res.status(500).json({ message: 'Server error' });
@@ -160,12 +184,23 @@ exports.getEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await Event.findById(id);
+    const event = await Event.findById(id).lean();
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    res.json({ event });
+    // Only expose check-in code to the organizer of this event
+    const isOrganizer = req.user && event.organizerId.toString() === req.user.id;
+    const responseEvent = { ...event };
+    if (isOrganizer) {
+      responseEvent.checkInCode = event.checkInCodePlain || null;
+    } else {
+      delete responseEvent.checkInCodeHash;
+      delete responseEvent.checkInCodePlain;
+      delete responseEvent.checkInCodeUpdatedAt;
+    }
+
+    res.json({ event: responseEvent });
   } catch (err) {
     console.error('Get event error:', err);
     return res.status(500).json({ message: 'Server error' });
@@ -178,7 +213,7 @@ exports.getEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, categories, startAt, endAt, venue, capacity, status } = req.body;
+    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity, status } = req.body;
     const organizerId = req.user.id;
 
     const event = await Event.findById(id);
@@ -198,6 +233,7 @@ exports.updateEvent = async (req, res) => {
 
     if (title) event.title = String(title).trim();
     if (description) event.description = String(description).trim();
+    if (typeof imageUrl === 'string') event.imageUrl = imageUrl.trim();
     if (categories) event.categories = categories;
     if (startAt) event.startAt = new Date(startAt);
     if (endAt) event.endAt = new Date(endAt);
@@ -240,6 +276,11 @@ exports.publishEvent = async (req, res) => {
     // Check if user is the organizer
     if (event.organizerId.toString() !== organizerId) {
       return res.status(403).json({ message: 'You are not authorized to publish this event' });
+    }
+
+    // Require check-in code to be configured before publish so scanning always uses the code
+    if (!event.checkInCodeHash) {
+      return res.status(400).json({ message: 'Set a check-in code before publishing this event' });
     }
 
     if (event.status !== 'draft') {
@@ -290,6 +331,44 @@ exports.cancelEvent = async (req, res) => {
   }
 };
 
+// Organizer: set or update per-event check-in code
+exports.setCheckInCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { code } = req.body || {};
+    const organizerId = req.user.id;
+
+    if (!code || String(code).trim().length < 4) {
+      return res.status(400).json({ message: 'A code of at least 4 characters is required' });
+    }
+
+    const event = await Event.findById(id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    if (event.organizerId.toString() !== organizerId) {
+      return res.status(403).json({ message: 'You are not authorized to update this event' });
+    }
+    if (event.status === 'cancelled') {
+      return res.status(400).json({ message: 'Cancelled events cannot be updated' });
+    }
+
+    const plain = String(code).trim();
+    const hash = await bcrypt.hash(plain, 10);
+    event.checkInCodeHash = hash;
+    event.checkInCodePlain = plain;
+    event.checkInCodeUpdatedAt = new Date();
+    await event.save();
+
+    return res.json({
+      message: 'Check-in code set for this event',
+      updatedAt: event.checkInCodeUpdatedAt,
+      checkInCode: event.checkInCodePlain
+    });
+  } catch (err) {
+    console.error('Set check-in code error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 /**
  * DELETE EVENT
  */
@@ -308,9 +387,9 @@ exports.deleteEvent = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to delete this event' });
     }
 
-    // Only allow draft events to be deleted
-    if (event.status !== 'draft') {
-      return res.status(400).json({ message: 'Only draft events can be deleted' });
+    // Only block deletion for published events; cancelled and draft can be removed
+    if (event.status === 'published') {
+      return res.status(400).json({ message: 'Published events must be cancelled before deletion' });
     }
 
     await Event.deleteOne({ _id: id });
@@ -327,8 +406,15 @@ exports.deleteEvent = async (req, res) => {
  */
 exports.getAllPublishedEvents = async (req, res) => {
   try {
-    const events = await Event.find({ status: 'published' }).sort({ startAt: 1 });
-    res.json({ events });
+    const events = await Event.find({ status: 'published' }).sort({ startAt: 1 }).lean();
+    const sanitized = events.map(evt => {
+      const obj = { ...evt };
+      delete obj.checkInCodeHash;
+      delete obj.checkInCodePlain;
+      delete obj.checkInCodeUpdatedAt;
+      return obj;
+    });
+    res.json({ events: sanitized });
   } catch (err) {
     console.error('Get published events error:', err);
     return res.status(500).json({ message: 'Server error' });

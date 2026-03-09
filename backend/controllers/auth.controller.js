@@ -53,7 +53,7 @@ exports.register = async (req, res) => {
       marketingConsent
     });
 
-    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, marketingConsent: user.marketingConsent } });
     console.log(`New user registered: ${email} (${user._id})`);
   } catch (err) {
     console.error('Register error', err);
@@ -108,7 +108,10 @@ exports.login = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        role: user.role
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        marketingConsent: user.marketingConsent
       }
     });
   } catch (err) {

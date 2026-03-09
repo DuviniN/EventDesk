@@ -16,6 +16,7 @@ const ticketSchema = new mongoose.Schema(
     ticketCode: { type: String, required: true, unique: true },
     qrPayload: { type: String },
     qrImage: { type: String },
+    qrRevokedAt: { type: Date },
     attendee: attendeeSchema,
     status: { type: String, enum: ['valid', 'checked_in', 'cancelled', 'refunded'], default: 'valid' },
     checkedInAt: { type: Date },

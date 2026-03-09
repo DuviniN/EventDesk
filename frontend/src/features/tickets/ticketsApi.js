@@ -7,6 +7,11 @@ export const getTicketTypes = async (eventId) => {
   return res.data;
 };
 
+export const getOrganizerAttendees = async () => {
+  const res = await axiosInstance.get(`${API_BASE}/organizer/attendees`);
+  return res.data;
+};
+
 export const getTicketsForEvent = async (eventId) => {
   const res = await axiosInstance.get(`${API_BASE}/${eventId}/tickets`);
   return res.data;

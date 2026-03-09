@@ -9,6 +9,11 @@ const jwt = require('jsonwebtoken');
 
 const qrSecret = process.env.QR_SECRET || process.env.ACCESS_TOKEN_SECRET || 'qr-fallback-secret';
 
+const normalizeTier = (value) => {
+  if (!value) return 'regular';
+  return String(value).trim().toLowerCase().replace(/\s+/g, '-');
+};
+
 const buildQrPayload = (ticket, event) => {
   return jwt.sign(
     {
@@ -77,7 +82,7 @@ exports.createTicketType = async (req, res) => {
   try {
     const organizerId = req.user.id;
     const { eventId } = req.params;
-    const { name, description, price, quantityTotal, saleStart, saleEnd, maxPerOrder, isActive } = req.body;
+    const { name, description, price, quantityTotal, saleStart, saleEnd, maxPerOrder, isActive, tier } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -88,6 +93,7 @@ exports.createTicketType = async (req, res) => {
     const tt = await TicketType.create({
       eventId,
       name: String(name).trim(),
+      tier: normalizeTier(tier),
       description: description || '',
       price: Number(price),
       quantityTotal: parseInt(quantityTotal) || 0,
@@ -135,6 +141,7 @@ exports.updateTicketType = async (req, res) => {
     ['name','description','price','quantityTotal','saleStart','saleEnd','maxPerOrder','isActive'].forEach(key => {
       if (payload[key] !== undefined) tt[key] = payload[key];
     });
+    if (payload.tier !== undefined) tt.tier = normalizeTier(payload.tier);
 
     await tt.save();
     res.json({ message: 'Ticket type updated', ticketType: tt });
@@ -361,27 +368,16 @@ exports.getTicketsForEvent = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    // if organizer, return all tickets
-    if (userId && event.organizerId.toString() === userId) {
-      const tickets = await Ticket.find({ eventId }).sort({ createdAt: -1 });
-      return res.json({ tickets });
+    // Organizer must own the event to view attendees
+    if (!userId || event.organizerId.toString() !== userId) {
+      return res.status(403).json({ message: 'Not authorized to view attendees for this event' });
     }
 
-    // public: return ticket types and availability
-    const ticketTypes = await TicketType.find({ eventId }).select('-__v');
-    const publicTypes = ticketTypes.map(t => ({
-      id: t._id,
-      name: t.name,
-      description: t.description,
-      price: t.price,
-      remaining: Math.max(0, t.quantityTotal - t.quantitySold),
-      saleStart: t.saleStart,
-      saleEnd: t.saleEnd,
-      maxPerOrder: t.maxPerOrder,
-      isActive: t.isActive
-    }));
+    const tickets = await Ticket.find({ eventId })
+      .populate('ticketTypeId', 'name price')
+      .sort({ createdAt: -1 });
 
-    return res.json({ ticketTypes: publicTypes });
+    return res.json({ tickets });
   } catch (err) {
     console.error('getTicketsForEvent error:', err);
     res.status(500).json({ message: 'Server error' });
@@ -403,7 +399,7 @@ exports.scanTicket = async (req, res) => {
     }
 
     const ticket = await Ticket.findById(decoded.tid)
-      .populate('eventId', 'title startAt endAt venue organizerId')
+      .populate('eventId', 'title startAt endAt venue organizerId checkInCodeHash')
       .populate('ticketTypeId', 'name price')
       .populate('orderId', 'createdAt buyerId');
 
@@ -411,6 +407,19 @@ exports.scanTicket = async (req, res) => {
     if (!ticket.eventId || ticket.eventId.organizerId.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized for this event' });
     }
+
+    // If already checked in, treat as used
+    if (ticket.status === 'checked_in') {
+      return res.status(400).json({ message: 'Ticket already checked in' });
+    }
+
+    // Check-in and revoke QR
+    ticket.status = 'checked_in';
+    ticket.checkedInAt = new Date();
+    ticket.checkedInBy = req.user.id;
+    ticket.qrPayload = null;
+    ticket.qrRevokedAt = new Date();
+    await ticket.save();
 
     return res.json({
       ticket: {
@@ -427,6 +436,165 @@ exports.scanTicket = async (req, res) => {
     });
   } catch (err) {
     console.error('scanTicket error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Public: verify a per-event check-in code and issue a short-lived session token
+exports.verifyCheckInCodePublic = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { code } = req.body || {};
+
+    if (!code) return res.status(400).json({ message: 'Code is required' });
+
+    const event = await Event.findById(eventId).lean();
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    if (!event.checkInCodeHash) return res.status(400).json({ message: 'Check-in code not set for this event' });
+    if (event.status === 'cancelled') return res.status(400).json({ message: 'Event is cancelled' });
+
+    const bcrypt = require('bcryptjs');
+    const ok = await bcrypt.compare(String(code).trim(), event.checkInCodeHash);
+    if (!ok) return res.status(401).json({ message: 'Invalid code' });
+
+    const sessionToken = jwt.sign(
+      { scope: 'checkin', eventId: event._id.toString() },
+      qrSecret,
+      { expiresIn: '30m' }
+    );
+
+    return res.json({
+      token: sessionToken,
+      event: {
+        id: event._id,
+        title: event.title,
+        startAt: event.startAt,
+        venue: event.venue,
+      },
+    });
+  } catch (err) {
+    console.error('verifyCheckInCodePublic error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Public: verify code without needing eventId in URL (find event by code)
+exports.verifyCheckInCodePublicAny = async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ message: 'Code is required' });
+
+    const bcrypt = require('bcryptjs');
+    const events = await Event.find({ status: { $ne: 'cancelled' }, checkInCodeHash: { $exists: true, $ne: null } }).lean();
+    let matched = null;
+    for (const evt of events) {
+      if (!evt.checkInCodeHash) continue;
+      const ok = await bcrypt.compare(String(code).trim(), evt.checkInCodeHash);
+      if (ok) {
+        matched = evt;
+        break;
+      }
+    }
+
+    if (!matched) return res.status(401).json({ message: 'Invalid code' });
+
+    const sessionToken = jwt.sign(
+      { scope: 'checkin', eventId: matched._id.toString() },
+      qrSecret,
+      { expiresIn: '30m' }
+    );
+
+    return res.json({
+      token: sessionToken,
+      event: {
+        id: matched._id,
+        title: matched.title,
+        startAt: matched.startAt,
+        venue: matched.venue,
+      },
+    });
+  } catch (err) {
+    console.error('verifyCheckInCodePublicAny error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Public: scan QR with a valid check-in session token
+exports.scanTicketWithCode = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { qr } = req.body || {};
+    const bearer = req.headers.authorization?.split(' ')[1];
+    const token = bearer || req.body?.token;
+
+    if (!token) return res.status(401).json({ message: 'Check-in session token required' });
+
+    let session;
+    try {
+      session = jwt.verify(token, qrSecret);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid or expired session token' });
+    }
+
+    if (session.scope !== 'checkin' || session.eventId !== eventId) {
+      return res.status(403).json({ message: 'Session not valid for this event' });
+    }
+
+    if (!qr) return res.status(400).json({ message: 'QR payload is required' });
+
+    const qrToken = extractQrToken(qr);
+    let decoded;
+    try {
+      decoded = jwt.verify(qrToken, qrSecret);
+    } catch (err) {
+      return res.status(400).json({ message: 'Invalid or expired QR code' });
+    }
+
+    if (decoded.eid !== eventId) {
+      return res.status(400).json({ message: 'Ticket does not belong to this event' });
+    }
+
+    const ticket = await Ticket.findById(decoded.tid)
+      .populate('eventId', 'title startAt endAt venue organizerId')
+      .populate('ticketTypeId', 'name price')
+      .populate('orderId', 'createdAt buyerId');
+
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+    if (!ticket.eventId) return res.status(400).json({ message: 'Ticket missing event' });
+    if (ticket.eventId._id.toString() !== eventId) {
+      return res.status(400).json({ message: 'Ticket does not match this event' });
+    }
+
+    if (!ticket.qrPayload || ticket.qrPayload !== qrToken) {
+      return res.status(400).json({ message: 'This QR has been revoked' });
+    }
+
+    if (ticket.status === 'checked_in') {
+      return res.status(400).json({ message: 'Ticket already checked in' });
+    }
+
+    ticket.status = 'checked_in';
+    ticket.checkedInAt = new Date();
+    ticket.checkedInBy = null; // public check-in; not tied to a user account
+    ticket.qrPayload = null;   // revoke further scans
+    ticket.qrRevokedAt = new Date();
+    await ticket.save();
+
+    return res.json({
+      ticket: {
+        id: ticket._id,
+        code: ticket.ticketCode,
+        status: ticket.status,
+        checkedInAt: ticket.checkedInAt,
+        attendee: ticket.attendee,
+        event: ticket.eventId,
+        ticketType: ticket.ticketTypeId,
+        orderId: ticket.orderId?._id,
+      },
+      alreadyChecked: false,
+    });
+  } catch (err) {
+    console.error('scanTicketWithCode error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -492,5 +660,26 @@ Thank you for booking with us.`
     res.status(201).json(newBooking);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Organizer: list all attendees across own events
+exports.getOrganizerAttendees = async (req, res) => {
+  try {
+    const organizerId = req.user.id;
+    const events = await Event.find({ organizerId }).select('_id title startAt').lean();
+    if (!events.length) return res.json({ tickets: [] });
+
+    const eventIds = events.map(e => e._id);
+    const tickets = await Ticket.find({ eventId: { $in: eventIds } })
+      .populate('eventId', 'title startAt')
+      .populate('ticketTypeId', 'name')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ tickets });
+  } catch (err) {
+    console.error('getOrganizerAttendees error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };

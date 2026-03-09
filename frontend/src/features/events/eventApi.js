@@ -32,6 +32,34 @@ export const getEvent = async (id) => {
   return response.data;
 };
 
+export const setEventCheckInCode = async (eventId, code) => {
+  const response = await axiosInstance.post(`${API_BASE}/${eventId}/checkin/code`, { code });
+  return response.data;
+};
+
+export const verifyCheckInCode = async (eventId, code) => {
+  const response = await axiosInstance.post(`${API_BASE}/${eventId}/checkin/verify`, { code });
+  return response.data;
+};
+
+export const verifyCheckInCodeAny = async (code) => {
+  const response = await axiosInstance.post(`${API_BASE}/checkin/verify`, { code });
+  return response.data;
+};
+
+export const scanCheckInQr = async (eventId, qr, token) => {
+  const response = await axiosInstance.post(
+    `${API_BASE}/${eventId}/checkin/scan`,
+    { qr },
+    token
+      ? {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      : undefined
+  );
+  return response.data;
+};
+
 export const updateEvent = async (id, eventData) => {
   const response = await axiosInstance.put(`${API_BASE}/${id}`, eventData);
   return response.data;
