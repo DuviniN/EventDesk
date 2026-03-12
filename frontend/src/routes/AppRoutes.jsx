@@ -12,6 +12,8 @@ import ProtectedRoute from "./ProtectedRoute";
 import EventDetail from "../pages/EventDetail";
 import EditEvent from "../pages/EditEvent";
 import ManageTickets from "../pages/ManageTickets";
+import Analytics from "../pages/Analytics";
+import EventAnalytics from "../pages/EventAnalytics";
 
 
 export default function AppRoutes() {
@@ -61,6 +63,22 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute>
             <ManageEvents />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/analytics" 
+        element={
+          <ProtectedRoute>
+            <Analytics />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/event/:id/analytics" 
+        element={
+          <ProtectedRoute>
+            <EventAnalytics />
           </ProtectedRoute>
         } 
       />

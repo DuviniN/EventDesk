@@ -15,5 +15,6 @@ app.use(cookieParser());
 
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/events", require("./routes/event.routes"));
+app.use("/api/analytics", require("./routes/analytics.routes"));
 
 module.exports = app;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
-import { Plus, Edit2, Trash2, Eye, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, Eye, CheckCircle, AlertCircle, BarChart2 } from "lucide-react";
 import { useAuth } from "../features/auth/useAuth";
 import { getOrganizerEvents, publishEvent, cancelEvent, deleteEvent } from "../features/events/eventApi";
 import toast from "react-hot-toast";
@@ -121,7 +121,7 @@ export default function ManageEvents() {
 
   return (
     <div className="min-h-screen pt-20 pb-12 bg-black">
-      <div className="max-w-6xl mx-auto px-6">
+      <div className="w-full px-6">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -189,6 +189,15 @@ export default function ManageEvents() {
                     {event.status === 'draft' && (
                       <>
                         <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
                           onClick={() => navigate(`/edit-event/${event._id}`)}
                           variant="ghost"
                           size="sm"
@@ -227,6 +236,15 @@ export default function ManageEvents() {
                     {event.status === 'published' && (
                       <>
                         <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
                           onClick={() => navigate(`/event/${event._id}`)}
                           variant="ghost"
                           size="sm"
@@ -255,14 +273,25 @@ export default function ManageEvents() {
                     )}
 
                     {event.status === 'cancelled' && (
-                      <Button
-                        onClick={() => handleDelete(event._id)}
-                        variant="danger"
-                        size="sm"
-                        disabled={deletingId === event._id}
-                      >
-                        {deletingId === event._id ? 'Deleting...' : 'Delete'}
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(event._id)}
+                          variant="danger"
+                          size="sm"
+                          disabled={deletingId === event._id}
+                        >
+                          {deletingId === event._id ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

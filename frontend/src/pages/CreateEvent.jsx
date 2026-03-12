@@ -147,11 +147,11 @@ export default function CreateEvent() {
 
   return (
     <div className="min-h-screen pt-20 pb-12 bg-black">
-      <div className="max-w-4xl mx-auto px-6">
+      <div className="w-full px-6">
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/manage-events')}
+            onClick={() => navigate(-1)}
             className="flex items-center space-x-2 text-purple-400 hover:text-purple-300 transition-colors mb-6"
           >
             <ArrowLeft size={20} />
