@@ -113,35 +113,42 @@ exports.purchaseTickets = async (req, res) => {
 
     // Attempt to reserve by incrementing quantitySold atomically per ticketType
     for (const it of items) {
+      if (!Number.isInteger(it.quantity) || it.quantity < 1) {
+        return res.status(400).json({ message: `Invalid quantity for ticket type ${it.ticketTypeId}` });
+      }
+
       const tt = await TicketType.findOneAndUpdate(
         {
           _id: it.ticketTypeId,
           eventId,
           isActive: true,
-          $expr: { $lt: ["$quantitySold", "$quantityTotal"] }
+          // Atomically prevent oversell: only proceed if enough seats remain for the full requested quantity
+          $expr: { $lte: [{ $add: ['$quantitySold', it.quantity] }, '$quantityTotal'] }
         },
         { $inc: { quantitySold: it.quantity } },
         { new: true }
       );
 
       if (!tt) {
-        // rollback previous increments
+        // rollback all previous increments
         for (const u of updates) {
           await TicketType.findByIdAndUpdate(u._id, { $inc: { quantitySold: -u.quantity } });
         }
-        return res.status(400).json({ message: `Unable to reserve ticket type ${it.ticketTypeId}` });
+        return res.status(400).json({ message: `Unable to reserve ticket type ${it.ticketTypeId}: sold out or not available` });
       }
 
-      // verify we didn't oversell
+      // Track this increment immediately — must be before any further checks so it is
+      // included in the rollback if a subsequent failure occurs (fixes oversell rollback bug)
+      updates.push({ _id: tt._id, quantity: it.quantity });
+
+      // Safety double-check (should never fire given the atomic filter above)
       if (tt.quantitySold > tt.quantityTotal) {
-        // rollback
         for (const u of updates) {
           await TicketType.findByIdAndUpdate(u._id, { $inc: { quantitySold: -u.quantity } });
         }
         return res.status(400).json({ message: 'Not enough tickets available' });
       }
 
-      updates.push({ _id: tt._id, quantity: it.quantity });
       orderItems.push({ ticketTypeId: tt._id, quantity: it.quantity, unitPriceMinor: Math.round(tt.price * 100) });
       total += Math.round(tt.price * 100) * it.quantity;
     }
