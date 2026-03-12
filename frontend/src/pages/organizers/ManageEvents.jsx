@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { Plus, Edit2, Trash2, Eye, CheckCircle, AlertCircle, Ticket, X, Loader2, PlusCircle, KeyRound, Copy } from "lucide-react";
+import { Plus, Edit2, Trash2, Eye, CheckCircle, AlertCircle, Ticket, X, Loader2, PlusCircle, KeyRound, Copy, BarChart2 } from "lucide-react";
 import { useAuth } from "../../features/auth/useAuth";
 import { getOrganizerEvents, publishEvent, cancelEvent, deleteEvent, setEventCheckInCode } from "../../features/events/eventApi";
 import { getTicketTypes, createTicketType, updateTicketType } from "../../features/tickets/ticketsApi";
@@ -347,6 +347,15 @@ export default function ManageEvents() {
                     {event.status === 'draft' && (
                       <>
                         <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
                           onClick={() => navigate(`/edit-event/${event._id}`)}
                           variant="ghost"
                           size="sm"
@@ -386,6 +395,15 @@ export default function ManageEvents() {
                     {event.status === 'published' && (
                       <>
                         <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
                           onClick={() => navigate(`/event/${event._id}`)}
                           variant="ghost"
                           size="sm"
@@ -415,14 +433,25 @@ export default function ManageEvents() {
                     )}
 
                     {event.status === 'cancelled' && (
-                      <Button
-                        onClick={() => handleDelete(event._id)}
-                        variant="danger"
-                        size="sm"
-                        disabled={deletingId === event._id}
-                      >
-                        {deletingId === event._id ? 'Deleting...' : 'Delete'}
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => navigate(`/event/${event._id}/analytics`)}
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center space-x-2"
+                        >
+                          <BarChart2 size={16} />
+                          <span>Analytics</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(event._id)}
+                          variant="danger"
+                          size="sm"
+                          disabled={deletingId === event._id}
+                        >
+                          {deletingId === event._id ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

@@ -29,8 +29,8 @@ import AllAttendees from "../pages/organizers/AllAttendees";
 
 import ProtectedRoute from "./ProtectedRoute";
 import { selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSlice";
-import Analytics from "../pages/Analytics";
-import EventAnalytics from "../pages/EventAnalytics";
+import Analytics from "../pages/organizers/Analytics";
+import EventAnalytics from "../pages/organizers/EventAnalytics";
 
 
 export default function AppRoutes() {

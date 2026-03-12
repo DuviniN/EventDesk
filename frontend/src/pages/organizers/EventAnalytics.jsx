@@ -5,9 +5,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { TrendingUp, Ticket, Users, CheckCircle } from "lucide-react";
-import Navbar from "../components/common/Navbar";
-import Footer from "../components/common/Footer";
-import { getEventAnalytics } from "../features/analytics/analyticsApi";
+import Navbar from "../../components/common/Navbar";
+import Footer from "../../components/common/Footer";
+import { getEventAnalytics } from "../../features/analytics/analyticsApi";
 
 const CHART_COLORS = ["#8b5cf6", "#f59e0b", "#06b6d4", "#6b7280", "#ef4444"];
 
