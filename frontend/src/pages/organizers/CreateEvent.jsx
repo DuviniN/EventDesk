@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "../features/auth/useAuth";
-import { createEvent } from "../features/events/eventApi";
+import { useAuth } from "../../features/auth/useAuth";
+import { createEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
+import Navbar from "../../components/common/Navbar";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function CreateEvent() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
+    imageUrl: "",
     categories: "",
     startAt: "",
     endAt: "",
@@ -25,6 +27,28 @@ export default function CreateEvent() {
     capacity: ""
   });
   const [errors, setErrors] = useState({});
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const isImage = file.type.startsWith("image/");
+    const isUnder2mb = file.size <= 2 * 1024 * 1024;
+    if (!isImage || !isUnder2mb) {
+      const message = !isImage
+        ? "Please select an image file"
+        : "Image must be under 2MB";
+      setErrors((prev) => ({ ...prev, imageUrl: message }));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, imageUrl: reader.result || "" }));
+      setErrors((prev) => ({ ...prev, imageUrl: "" }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Redirect if not organizer
   if (isAuthenticated && user?.role !== "organizer") {
@@ -75,6 +99,14 @@ export default function CreateEvent() {
       newErrors.description = 'Event description is required';
     }
 
+    if (!formData.imageUrl.trim()) {
+      newErrors.imageUrl = 'Event image is required';
+    }
+
+    if (!formData.categories) {
+      newErrors.categories = 'Select a category';
+    }
+
     if (!formData.startAt) {
       newErrors.startAt = 'Start date and time are required';
     }
@@ -123,9 +155,8 @@ export default function CreateEvent() {
     setLoading(true);
     try {
       const categoriesArray = formData.categories
-        .split(',')
-        .map(cat => cat.trim())
-        .filter(cat => cat);
+        ? [formData.categories]
+        : [];
 
       const eventData = {
         ...formData,
@@ -146,8 +177,10 @@ export default function CreateEvent() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-12 bg-black">
-      <div className="w-full px-6">
+    <>
+      <Navbar />
+      <div className="min-h-screen pt-20 pb-12 bg-black">
+        <div className="max-w-4xl mx-auto px-6">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -203,14 +236,52 @@ export default function CreateEvent() {
                 )}
               </div>
 
-              <Input
-                label="Categories (comma-separated)"
-                type="text"
-                name="categories"
-                placeholder="e.g., Tech, Music, Sports"
-                value={formData.categories}
-                onChange={handleChange}
-              />
+              <div>
+                <label htmlFor="categories" className="block text-sm font-medium text-white mb-2">
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="categories"
+                  name="categories"
+                  value={formData.categories}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                  required
+                >
+                  <option value="" disabled>Select a category</option>
+                  <option value="concert">Concert</option>
+                  <option value="theatre">Theatre</option>
+                  <option value="family">Family</option>
+                  <option value="other">Other</option>
+                </select>
+                {errors.categories && (
+                  <p className="text-red-500 text-sm mt-1">{errors.categories}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Event Image <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-24 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden flex items-center justify-center text-xs text-gray-400">
+                    {formData.imageUrl ? (
+                      <img src={formData.imageUrl} alt="Preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <span>No image</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="text-sm text-gray-200"
+                  />
+                </div>
+                {errors.imageUrl && (
+                  <p className="text-red-500 text-sm mt-1">{errors.imageUrl}</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -308,7 +379,8 @@ export default function CreateEvent() {
             </Button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -13,8 +13,7 @@ const retryIntervalMs = parseInt(process.env.MONGO_RETRY_INTERVAL_MS, 10) || 150
 const connectDB = async () => {
     const uri = process.env.MONGO_URI;
     if (!uri) {
-        console.warn('MONGO_URI not provided — skipping MongoDB connection. Set MONGO_URI in .env to enable DB.');
-        return null;
+        throw new Error('MONGO_URI not provided — set it in your .env to persist users/events.');
     }
 
     const tryConnect = async () => {
@@ -24,22 +23,14 @@ const connectDB = async () => {
             return true;
         } catch (err) {
             console.error('\nMongoDB connection error:', err.message);
+            // surface connection errors so API returns 500 instead of “success” without persistence
+            throw err;
             return false;
         }
     };
 
     // Try once immediately, then keep retrying in background until success.
-    const ok = await tryConnect();
-    if (ok) return null;
-
-    const intervalId = setInterval(async () => {
-        const success = await tryConnect();
-        if (success) {
-            clearInterval(intervalId);
-        }
-    }, retryIntervalMs);
-
-    // Return without throwing so server keeps running; retries continue in background.
+    await tryConnect();
     return null;
 };
 

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
 import { ArrowLeft } from "lucide-react";
-import { useAuth } from "../features/auth/useAuth";
-import { getEvent, updateEvent } from "../features/events/eventApi";
+import { useAuth } from "../../features/auth/useAuth";
+import { getEvent, updateEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
 
 export default function EditEvent() {

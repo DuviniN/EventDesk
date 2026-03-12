@@ -3,12 +3,24 @@ const { verifyAccessToken } = require('../utils/jwt');
 const auth = (roles = []) => {
     return (req, res, next) => {
         const authHeader = req.headers.authorization;
-        if (!authHeader) return res.status(401).json({ message: 'No token provided' });
+        const cookieToken = req.cookies?.accessToken;
 
-        const parts = authHeader.split(' ');
-        if (parts.length !== 2 || parts[0] !== 'Bearer') return res.status(401).json({ message: 'Malformed token' });
+        if (!authHeader && !cookieToken) return res.status(401).json({ message: 'No token provided' });
 
-        const token = parts[1];
+        let token = null;
+        if (authHeader) {
+            const parts = authHeader.split(' ');
+            if (parts.length === 2 && parts[0] === 'Bearer') {
+                token = parts[1];
+            } else if (!cookieToken) {
+                return res.status(401).json({ message: 'Malformed token' });
+            }
+        }
+
+        if (!token && cookieToken) {
+            token = cookieToken;
+        }
+
         try {
             const decoded = verifyAccessToken(token);
             if (roles.length && !roles.includes(decoded.role)) return res.status(403).json({ message: 'Forbidden' });

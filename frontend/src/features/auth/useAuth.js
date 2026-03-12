@@ -1,7 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setCredentials, logout as logoutAction, selectCurrentUser, selectIsAuthenticated } from './authSlice';
-import { loginUser, registerUser, logoutUser, getCurrentUser } from './authApi';
+import { loginUser, registerUser, logoutUser, getCurrentUser, updateProfile as updateProfileApi, changePassword as changePasswordApi } from './authApi';
 import { setAccessToken } from '../../services/axios';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -20,7 +20,13 @@ export const useAuth = () => {
       setAccessToken(data.accessToken);
       dispatch(setCredentials(data));
       toast.success('Login successful!');
-      navigate('/');
+      // setTimeout(0) pushes navigate to the next event-loop tick, guaranteeing
+      // React 19 has committed the Redux state before the new route renders.
+      const role = data.user?.role || 'attendee';
+      setTimeout(() => {
+        if (role === 'organizer') navigate('/dashboard', { replace: true });
+        else navigate('/attendee-dashboard', { replace: true });
+      }, 0);
       return data;
     } catch (error) {
       toast.error(error.message || 'Login failed');
@@ -73,6 +79,18 @@ export const useAuth = () => {
     }
   };
 
+  const updateProfile = async (payload) => {
+    const data = await updateProfileApi(payload);
+    dispatch(setCredentials({ user: data.user, accessToken: localStorage.getItem('accessToken') }));
+    toast.success('Profile updated');
+    return data.user;
+  };
+
+  const changePassword = async (payload) => {
+    await changePasswordApi(payload);
+    toast.success('Password updated');
+  };
+
   return {
     user,
     isAuthenticated,
@@ -81,6 +99,8 @@ export const useAuth = () => {
     register,
     logout,
     fetchCurrentUser,
+    updateProfile,
+    changePassword,
   };
 };
 

@@ -53,7 +53,8 @@ exports.register = async (req, res) => {
       marketingConsent
     });
 
-    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, marketingConsent: user.marketingConsent } });
+    console.log(`New user registered: ${email} (${user._id})`);
   } catch (err) {
     console.error('Register error', err);
     return res.status(500).json({ message: 'Server error' });
@@ -94,12 +95,23 @@ exports.login = async (req, res) => {
       sameSite: 'strict'
     });
 
+    // Send access token as httpOnly cookie as a fallback for clients that miss the header
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 // align with ACCESS_TOKEN_EXPIRE
+    });
+
     res.json({
       accessToken,
       user: {
         id: user._id,
         name: user.name,
-        role: user.role
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        marketingConsent: user.marketingConsent
       }
     });
   } catch (err) {
@@ -117,6 +129,76 @@ exports.me = async (req, res) => {
     return res.json({ user });
   } catch (err) {
     console.error('Me error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update current user profile (name, marketingConsent, avatarUrl)
+exports.updateProfile = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { name, marketingConsent, avatarUrl } = req.body || {};
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      const { isNameValid } = require('../utils/validators');
+      if (!isNameValid(trimmed)) {
+        return res.status(400).json({ message: 'Invalid name: use letters and spaces only (no numbers or symbols)' });
+      }
+      user.name = trimmed;
+    }
+
+    if (marketingConsent !== undefined) {
+      user.marketingConsent = !!marketingConsent;
+    }
+
+    if (avatarUrl !== undefined) {
+      // Accept data URLs or external URLs; basic length guard to prevent huge payloads
+      const trimmed = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+      if (trimmed && trimmed.length > 500000) {
+        return res.status(400).json({ message: 'Avatar too large' });
+      }
+      user.avatarUrl = trimmed || null;
+    }
+
+    await user.save();
+    const sanitized = user.toObject();
+    delete sanitized.passwordHash;
+    delete sanitized.refreshToken;
+
+    res.json({ message: 'Profile updated', user: sanitized });
+  } catch (err) {
+    console.error('Update profile error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Change password for current user (requires oldPassword, newPassword)
+exports.changePassword = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Old and new passwords are required' });
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(String(oldPassword), user.passwordHash);
+    if (!isMatch) return res.status(401).json({ message: 'Old password is incorrect' });
+
+    const pwdCheck = passwordStrength(String(newPassword));
+    if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
+
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
+    user.passwordHash = await bcrypt.hash(String(newPassword), saltRounds);
+    await user.save();
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change password error', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };

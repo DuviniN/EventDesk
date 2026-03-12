@@ -12,6 +12,16 @@ export const getOrganizerEvents = async () => {
   return response.data;
 };
 
+export const getOrganizerOverview = async () => {
+  const response = await axiosInstance.get(`${API_BASE}/organizer/overview`);
+  return response.data;
+};
+
+export const getMyTickets = async () => {
+  const response = await axiosInstance.get(`${API_BASE}/me/tickets`);
+  return response.data;
+};
+
 export const getPublishedEvents = async () => {
   const response = await axiosInstance.get(`${API_BASE}/published`);
   return response.data;
@@ -19,6 +29,34 @@ export const getPublishedEvents = async () => {
 
 export const getEvent = async (id) => {
   const response = await axiosInstance.get(`${API_BASE}/${id}`);
+  return response.data;
+};
+
+export const setEventCheckInCode = async (eventId, code) => {
+  const response = await axiosInstance.post(`${API_BASE}/${eventId}/checkin/code`, { code });
+  return response.data;
+};
+
+export const verifyCheckInCode = async (eventId, code) => {
+  const response = await axiosInstance.post(`${API_BASE}/${eventId}/checkin/verify`, { code });
+  return response.data;
+};
+
+export const verifyCheckInCodeAny = async (code) => {
+  const response = await axiosInstance.post(`${API_BASE}/checkin/verify`, { code });
+  return response.data;
+};
+
+export const scanCheckInQr = async (eventId, qr, token) => {
+  const response = await axiosInstance.post(
+    `${API_BASE}/${eventId}/checkin/scan`,
+    { qr },
+    token
+      ? {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      : undefined
+  );
   return response.data;
 };
 
