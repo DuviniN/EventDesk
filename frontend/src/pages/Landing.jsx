@@ -7,7 +7,7 @@ import Navbar from "../components/common/Navbar";
 import Footer from "../components/common/Footer";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
-import { getPublishedEvents } from "../features/events/eventApi";
+import { getPublishedEvents, getPlatformStats } from "../features/events/eventApi";
 import { Ticket, TicketCheck, Search, CreditCard, Mail, BarChart3, CheckCircle, Target, MapPin, CalendarDays } from "lucide-react";
 
 export default function Landing() {
@@ -16,6 +16,8 @@ export default function Landing() {
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [eventsError, setEventsError] = useState("");
+  const [stats, setStats] = useState({ eventsCreated: 0, ticketsSold: 0, organizers: 0, uptimeLabel: "--" });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   const heroBackground = "https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?auto=format&fit=crop&w=1800&q=80&sat=-15";
 
@@ -81,7 +83,21 @@ export default function Landing() {
         if (isMounted) setLoadingEvents(false);
       }
     };
+    const fetchStats = async () => {
+      try {
+        setLoadingStats(true);
+        const data = await getPlatformStats();
+        if (!isMounted) return;
+        setStats(data);
+      } catch (err) {
+        if (!isMounted) return;
+        setStats((prev) => ({ ...prev, uptimeLabel: "--" }));
+      } finally {
+        if (isMounted) setLoadingStats(false);
+      }
+    };
     fetchEvents();
+    fetchStats();
     return () => {
       isMounted = false;
     };
@@ -133,10 +149,17 @@ export default function Landing() {
           </div>
           
           <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            {["10K+","50K+","5K+","99.9%"].map((stat, idx) => (
-              <div key={stat} className="text-center bg-white/15 backdrop-blur-md border border-white/25 rounded-xl p-4 shadow-sm">
-                <div className="text-3xl md:text-4xl font-bold text-white drop-shadow">{stat}</div>
-                <div className="text-white/80 mt-2">{["Events Created","Tickets Sold","Organizers","Uptime"][idx]}</div>
+            {[
+              { label: "Events Created", value: stats.eventsCreated },
+              { label: "Tickets Sold", value: stats.ticketsSold },
+              { label: "Organizers", value: stats.organizers },
+              { label: "Uptime", value: stats.uptimeLabel }
+            ].map(({ label, value }) => (
+              <div key={label} className="text-center bg-white/15 backdrop-blur-md border border-white/25 rounded-xl p-4 shadow-sm">
+                <div className="text-3xl md:text-4xl font-bold text-white drop-shadow">
+                  {loadingStats ? '—' : (value ?? '0')}
+                </div>
+                <div className="text-white/80 mt-2">{label}</div>
               </div>
             ))}
           </div>

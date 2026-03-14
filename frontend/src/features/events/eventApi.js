@@ -27,6 +27,11 @@ export const getPublishedEvents = async () => {
   return response.data;
 };
 
+export const getPlatformStats = async () => {
+  const response = await axiosInstance.get(`${API_BASE}/stats`);
+  return response.data;
+};
+
 export const getEvent = async (id) => {
   const response = await axiosInstance.get(`${API_BASE}/${id}`);
   return response.data;

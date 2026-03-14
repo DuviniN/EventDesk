@@ -13,6 +13,17 @@ const generateCheckInCode = () => {
   return crypto.randomInt(100000, 999999).toString();
 };
 
+const formatUptimeLabel = (seconds) => {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (!days && minutes) parts.push(`${minutes}m`);
+  return parts.length ? parts.join(" ") : "<1m";
+};
+
 /**
  * CREATE EVENT
  */
@@ -181,6 +192,35 @@ exports.getOrganizerOverview = async (req, res) => {
   } catch (err) {
     console.error('Get organizer overview error:', err);
     return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Platform-wide public stats for landing page
+exports.getPlatformStats = async (_req, res) => {
+  try {
+    const [eventsCreated, eventsPublished, ticketsAgg, organizers] = await Promise.all([
+      Event.countDocuments({}),
+      Event.countDocuments({ status: 'published' }),
+      TicketType.aggregate([
+        { $group: { _id: null, ticketsSold: { $sum: '$quantitySold' } } }
+      ]),
+      User.countDocuments({ role: 'organizer' })
+    ]);
+
+    const ticketsSold = (ticketsAgg[0]?.ticketsSold) || 0;
+    const uptimeSeconds = Math.floor(process.uptime());
+
+    res.json({
+      eventsCreated,
+      eventsPublished,
+      ticketsSold,
+      organizers,
+      uptimeSeconds,
+      uptimeLabel: formatUptimeLabel(uptimeSeconds)
+    });
+  } catch (err) {
+    console.error('getPlatformStats error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

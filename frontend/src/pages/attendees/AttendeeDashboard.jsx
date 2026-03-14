@@ -66,59 +66,69 @@ function EventCard({ event }) {
   return (
     <Link
       to={`/event/${event._id}`}
-      className="group relative rounded-2xl border border-purple-100 hover:border-purple-300 transition-all duration-300 overflow-hidden flex flex-col bg-white shadow-md hover:-translate-y-0.5 hover:shadow-purple-200"
+      className="group relative rounded-2xl border border-purple-100 hover:border-purple-300 transition-all duration-300 overflow-hidden flex flex-col bg-white shadow-lg hover:-translate-y-0.5 hover:shadow-purple-200"
     >
-      <div className="relative h-48 w-full overflow-hidden">
+      <div className="relative h-56 w-full overflow-hidden">
         <img
           src={imageSrc}
           alt={event.title}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/5 to-white/60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/15 to-black/55" />
+        <div className="absolute top-4 left-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-slate-800 text-xs font-semibold shadow-md border border-white/60">
+          <CalendarDays size={14} className="text-purple-600" />
+          <span>{date}</span>
+        </div>
+        {time && (
+          <div className="absolute top-4 right-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-slate-800 text-xs font-semibold shadow-md border border-white/60">
+            <Clock size={14} className="text-purple-600" />
+            <span>{time}</span>
+          </div>
+        )}
       </div>
 
-      <div className="p-5 flex flex-col flex-1 gap-3">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+      <div className="p-6 flex flex-col flex-1 gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           {displayCategory && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
               {displayCategory}
             </span>
           )}
-          {time && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-              <Clock size={12} className="text-purple-500" />
-              {time}
+          {event.status && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
             </span>
           )}
         </div>
 
-        <h3 className="text-slate-900 font-semibold text-lg leading-snug line-clamp-2 group-hover:text-purple-700 transition-colors duration-200">
+        <h3 className="text-slate-900 font-semibold text-xl leading-snug line-clamp-2 group-hover:text-purple-700 transition-colors duration-200">
           {event.title}
         </h3>
 
         {event.description && (
-          <p className="text-slate-600 text-sm line-clamp-2 leading-relaxed flex-1">
+          <p className="text-slate-600 text-sm line-clamp-3 leading-relaxed flex-1">
             {event.description}
           </p>
         )}
 
-        <div className="flex flex-wrap gap-3 text-xs text-slate-500 pt-1">
-          <span className="flex items-center gap-1.5">
-            <CalendarDays size={12} className="text-purple-500" />
-            {date}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
+          <span className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <CalendarDays size={14} className="text-purple-500" />
+            <span>{date}</span>
           </span>
           {event.venue && (
-            <span className="flex items-center gap-1.5">
-              <MapPin size={12} className="text-purple-500" />
-              <span className="truncate max-w-[140px]">{formatVenue(event.venue)}</span>
+            <span className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+              <MapPin size={14} className="text-purple-500" />
+              <span className="truncate" title={formatVenue(event.venue)}>{formatVenue(event.venue)}</span>
             </span>
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
-          <div className="flex items-center gap-2 text-xs text-purple-600 font-semibold">
-            <span className="group-hover:underline">View Details</span>
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
+          <div className="flex items-center gap-2 text-sm text-purple-600 font-semibold">
+            <span className="group-hover:underline">View details</span>
           </div>
           <ArrowRight size={16} className="text-slate-400 group-hover:text-purple-500 group-hover:translate-x-1 transition-all duration-200" />
         </div>
