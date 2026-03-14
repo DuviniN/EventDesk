@@ -8,6 +8,7 @@ const {
 const { isEmailValid, passwordStrength } = require("../utils/validators");
 const crypto = require('crypto');
 const RefreshToken = require('../models/RefreshToken');
+const sendEmail = require("../utils/sendEmail");
 
 /**
  * REGISTER
@@ -53,7 +54,8 @@ exports.register = async (req, res) => {
       marketingConsent
     });
 
-    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role } });
+    res.status(201).json({ message: 'User registered successfully', user: { id: user._id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, marketingConsent: user.marketingConsent } });
+    console.log(`New user registered: ${email} (${user._id})`);
   } catch (err) {
     console.error('Register error', err);
     return res.status(500).json({ message: 'Server error' });
@@ -94,12 +96,23 @@ exports.login = async (req, res) => {
       sameSite: 'strict'
     });
 
+    // Send access token as httpOnly cookie as a fallback for clients that miss the header
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 // align with ACCESS_TOKEN_EXPIRE
+    });
+
     res.json({
       accessToken,
       user: {
         id: user._id,
         name: user.name,
-        role: user.role
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        marketingConsent: user.marketingConsent
       }
     });
   } catch (err) {
@@ -121,24 +134,114 @@ exports.me = async (req, res) => {
   }
 };
 
-// Forgot password - generate token and (for testing) return it in response
+// Update current user profile (name, marketingConsent, avatarUrl)
+exports.updateProfile = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+
+    const { name, marketingConsent, avatarUrl } = req.body || {};
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      const { isNameValid } = require('../utils/validators');
+      if (!isNameValid(trimmed)) {
+        return res.status(400).json({ message: 'Invalid name: use letters and spaces only (no numbers or symbols)' });
+      }
+      user.name = trimmed;
+    }
+
+    if (marketingConsent !== undefined) {
+      user.marketingConsent = !!marketingConsent;
+    }
+
+    if (avatarUrl !== undefined) {
+      // Accept data URLs or external URLs; basic length guard to prevent huge payloads
+      const trimmed = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+      if (trimmed && trimmed.length > 500000) {
+        return res.status(400).json({ message: 'Avatar too large' });
+      }
+      user.avatarUrl = trimmed || null;
+    }
+
+    await user.save();
+    const sanitized = user.toObject();
+    delete sanitized.passwordHash;
+    delete sanitized.refreshToken;
+
+    res.json({ message: 'Profile updated', user: sanitized });
+  } catch (err) {
+    console.error('Update profile error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Change password for current user (requires oldPassword, newPassword)
+exports.changePassword = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) return res.status(401).json({ message: 'Unauthorized' });
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) return res.status(400).json({ message: 'Old and new passwords are required' });
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(String(oldPassword), user.passwordHash);
+    if (!isMatch) return res.status(401).json({ message: 'Old password is incorrect' });
+
+    const pwdCheck = passwordStrength(String(newPassword));
+    if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
+
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
+    user.passwordHash = await bcrypt.hash(String(newPassword), saltRounds);
+    await user.save();
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('Change password error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Forgot password - generate short code, email it, store hashed with expiry
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body || {};
     if (!email || !isEmailValid(email)) return res.status(400).json({ message: 'Invalid email' });
     const user = await User.findOne({ email: String(email).trim().toLowerCase() });
-    if (!user) return res.status(200).json({ message: 'If that email exists, a reset token has been sent' });
+    if (!user) return res.status(200).json({ message: 'If that email exists, a reset code has been sent' });
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+    const code = (crypto.randomInt(100000, 999999)).toString();
+    const tokenHash = crypto.createHash('sha256').update(code).digest('hex');
+    const expires = new Date(Date.now() + 1000 * 60 * 15); // 15 minutes
 
     user.passwordResetToken = tokenHash;
     user.passwordResetExpires = expires;
     await user.save();
 
-    // In production, email the token. For Postman testing we return it.
-    return res.json({ message: 'Reset token generated', resetToken: token });
+    const textBody = [
+      `Hi ${user.name || 'there'},`,
+      '',
+      'Use the code below to reset your EventDesk password:',
+      '',
+      `Reset code: ${code}`,
+      '',
+      'This code expires in 15 minutes. If you did not request this, you can ignore this email.'
+    ].join('\n');
+
+    const htmlBody = `
+      <div style="font-family:'Inter',Arial,sans-serif;background:#0b0c10;padding:20px;color:#e5e7eb;">
+        <h2 style="margin:0 0 8px 0;color:#c084fc;">Reset your password</h2>
+        <p style="margin:0 0 6px 0;color:#cbd5e1;">Use this code to reset your password. It expires in 15 minutes.</p>
+        <div style="margin:12px 0;padding:12px 16px;background:#111827;border:1px solid #1f2937;border-radius:10px;font-size:20px;font-weight:700;letter-spacing:3px;color:#e5e7eb;">${code}</div>
+        <p style="margin:0;color:#94a3b8;">If you did not request this, you can ignore this email.</p>
+      </div>
+    `;
+
+    await sendEmail(user.email, 'Your EventDesk reset code', { text: textBody, html: htmlBody });
+
+    return res.json({ message: 'If that email exists, a reset code has been sent' });
   } catch (err) {
     console.error('Forgot password error', err);
     return res.status(500).json({ message: 'Server error' });
@@ -148,12 +251,22 @@ exports.forgotPassword = async (req, res) => {
 // Reset password
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, password } = req.body || {};
-    if (!token || !password) return res.status(400).json({ message: 'Missing token or password' });
+    const { token, code, email, password } = req.body || {};
+    if (!password) return res.status(400).json({ message: 'Missing password' });
 
-    const hash = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await User.findOne({ passwordResetToken: hash, passwordResetExpires: { $gt: new Date() } });
-    if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
+    let user = null;
+
+    if (code && email) {
+      const hash = crypto.createHash('sha256').update(String(code)).digest('hex');
+      user = await User.findOne({ email: String(email).trim().toLowerCase(), passwordResetToken: hash, passwordResetExpires: { $gt: new Date() } });
+    } else if (token) {
+      const hash = crypto.createHash('sha256').update(token).digest('hex');
+      user = await User.findOne({ passwordResetToken: hash, passwordResetExpires: { $gt: new Date() } });
+    } else {
+      return res.status(400).json({ message: 'Missing reset code or token' });
+    }
+
+    if (!user) return res.status(400).json({ message: 'Invalid or expired reset code' });
 
     const pwdCheck = passwordStrength(String(password));
     if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });

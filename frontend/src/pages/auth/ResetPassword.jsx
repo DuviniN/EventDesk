@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
@@ -12,12 +12,22 @@ export default function ResetPassword() {
   const token = searchParams.get('token');
   
   const [formData, setFormData] = useState({
+    email: "",
+    code: "",
     password: "",
     confirmPassword: ""
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    const defaultEmail = searchParams.get('email') || "";
+    const defaultCode = searchParams.get('code') || "";
+    if (defaultEmail || defaultCode) {
+      setFormData((prev) => ({ ...prev, email: defaultEmail, code: defaultCode }));
+    }
+  }, [searchParams]);
 
   const validatePassword = (password) => {
     const passwordErrors = [];
@@ -46,8 +56,8 @@ export default function ResetPassword() {
     // Validation
     const newErrors = {};
     
-    if (!token) {
-      newErrors.submit = 'Invalid reset token. Please request a new password reset link.';
+    if (!token && (!formData.email || !formData.code)) {
+      newErrors.submit = 'Enter the email and code we sent to reset your password.';
       setErrors(newErrors);
       return;
     }
@@ -67,8 +77,13 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      console.log('Sending reset request with token:', token);
-      await resetPassword({ token, password: formData.password });
+      await resetPassword({
+        token,
+        email: formData.email,
+        code: formData.code,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      });
       setSuccess(true);
       toast.success("Password reset successful!");
       setTimeout(() => {
@@ -82,20 +97,6 @@ export default function ResetPassword() {
       setLoading(false);
     }
   };
-
-  if (!token) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center text-white">
-          <h2 className="text-2xl font-bold mb-4">Invalid Reset Link</h2>
-          <p className="text-gray-400 mb-6">This password reset link is invalid or has expired.</p>
-          <Link to="/forgot-password">
-            <Button variant="primary">Request New Link</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex bg-black">
@@ -133,9 +134,11 @@ export default function ResetPassword() {
             </Link>
             
             <h2 className="text-3xl font-bold text-white mb-2">Set New Password</h2>
-            <p className="text-gray-400">Enter your new password below.</p>
-            {token && (
+            <p className="text-gray-400">Use the code we emailed you to reset.</p>
+            {token ? (
               <p className="text-xs text-green-500 mt-2">✓ Reset token verified</p>
+            ) : (
+              <p className="text-xs text-green-500 mt-2">✓ Using email + code</p>
             )}
           </div>
 
@@ -145,6 +148,29 @@ export default function ResetPassword() {
                 <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg text-sm">
                   {errors.submit}
                 </div>
+              )}
+
+              {!token && (
+                <>
+                  <Input
+                    label="Email Address"
+                    type="email"
+                    name="email"
+                    placeholder="you@example.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
+                  <Input
+                    label="6-digit Code"
+                    type="text"
+                    name="code"
+                    placeholder="123456"
+                    value={formData.code}
+                    onChange={handleChange}
+                    required
+                  />
+                </>
               )}
 
               <Input

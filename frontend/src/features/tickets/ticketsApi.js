@@ -7,6 +7,11 @@ export const getTicketTypes = async (eventId) => {
   return res.data;
 };
 
+export const getOrganizerAttendees = async () => {
+  const res = await axiosInstance.get(`${API_BASE}/organizer/attendees`);
+  return res.data;
+};
+
 export const getTicketsForEvent = async (eventId) => {
   const res = await axiosInstance.get(`${API_BASE}/${eventId}/tickets`);
   return res.data;
@@ -29,5 +34,10 @@ export const deleteTicketType = async (eventId, id) => {
 
 export const purchaseTickets = async (eventId, payload) => {
   const res = await axiosInstance.post(`${API_BASE}/${eventId}/tickets/purchase`, payload);
+  return res.data;
+};
+
+export const scanTicketQr = async (qr) => {
+  const res = await axiosInstance.post(`${API_BASE}/tickets/scan`, { qr });
   return res.data;
 };
