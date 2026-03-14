@@ -29,6 +29,8 @@ import AllAttendees from "../pages/organizers/AllAttendees";
 
 import ProtectedRoute from "./ProtectedRoute";
 import { selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSlice";
+import Analytics from "../pages/organizers/Analytics";
+import EventAnalytics from "../pages/organizers/EventAnalytics";
 
 
 export default function AppRoutes() {
@@ -128,6 +130,22 @@ export default function AppRoutes() {
             <ManageEvents />
           </ProtectedRoute>
         }
+      />
+      <Route 
+        path="/analytics" 
+        element={
+          <ProtectedRoute requiredRole="organizer">
+            <Analytics />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/event/:id/analytics" 
+        element={
+          <ProtectedRoute requiredRole="organizer">
+            <EventAnalytics />
+          </ProtectedRoute>
+        } 
       />
     </Routes>
   );
