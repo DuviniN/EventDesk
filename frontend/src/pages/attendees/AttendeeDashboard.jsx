@@ -209,17 +209,13 @@ export default function AttendeeDashboard() {
 
       {/* Hero welcome banner */}
       <div className="relative pt-24 pb-12 px-4 sm:px-8 lg:px-12 xl:px-16 overflow-hidden" style={{ backgroundColor: "#f5f1ff" }}>
-        <div
-          className="absolute inset-0 transition-opacity duration-700"
-          style={{
-            backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(241,233,255,0.7) 55%, rgba(229,219,255,0.75) 100%), url(${HERO_IMAGES[heroIndex]})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center 18%",
-            backgroundRepeat: "no-repeat",
-            filter: "saturate(1.05)",
-            opacity: 0.95
-          }}
+        <img
+          src={HERO_IMAGES[heroIndex]}
+          alt="Live music crowd"
+          className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700"
+          style={{ filter: "saturate(1.08)", opacity: 0.9 }}
         />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/82 via-[#f1e9ff]/68 to-[#e5dbff]/75" />
         <div className="absolute -left-32 -top-24 w-96 h-96 rounded-full bg-purple-300/30 blur-3xl" />
         <div className="absolute -right-24 -top-10 w-80 h-80 rounded-full bg-indigo-300/25 blur-3xl" />
         <div className="relative w-full mx-auto max-w-[1200px]">

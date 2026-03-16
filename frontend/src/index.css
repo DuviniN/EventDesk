@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
+  --bg-main: linear-gradient(180deg, #f5f2ff 0%, #ece6ff 35%, #ffffff 100%);
+  --text-primary: #1f0f26;
+  --surface-bg: rgba(255, 255, 255, 0.92);
+  --border-color: rgba(106, 49, 127, 0.22);
   --color-primary: #6a317f;
   --color-accent: #6a317f;
   --color-muted: #6a317f;
@@ -9,8 +14,308 @@
   --earlybird-color: #6a317f;
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-main:
+    radial-gradient(circle at 10% 8%, rgba(140, 82, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 88% 2%, rgba(58, 147, 255, 0.14), transparent 30%),
+    linear-gradient(180deg, #0b0d14 0%, #0f1220 42%, #0b0d15 100%);
+  --text-primary: #f5ecff;
+  --surface-bg: rgba(19, 23, 35, 0.8);
+  --border-color: rgba(181, 149, 255, 0.28);
+  --color-primary: #d0a4ff;
+  --color-accent: #bf95ff;
+  --color-muted: #b7a5d4;
+  --bg-card: #111827;
+  --vip-color: #e0beff;
+  --earlybird-color: #d8b8ff;
+}
+
 body {
-  background: linear-gradient(180deg, #6a317f 0%, rgba(106,49,127,0.45) 35%, #ffffff 100%);
-  color: #6a317f;
+  background: var(--bg-main);
+  color: var(--text-primary);
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100vh;
+  transition: background 220ms ease, color 220ms ease;
+}
+
+/* Organizer pages in LIGHT mode: white + purple palette */
+:root:not([data-theme="dark"]) .organizer-light .bg-black,
+:root:not([data-theme="dark"]) .organizer-light .bg-gray-900,
+:root:not([data-theme="dark"]) .organizer-light .bg-gray-950,
+:root:not([data-theme="dark"]) .organizer-light .bg-gray-900\/70,
+:root:not([data-theme="dark"]) .organizer-light .bg-gray-900\/50,
+:root:not([data-theme="dark"]) .organizer-light .bg-gray-950\/80,
+:root:not([data-theme="dark"]) .organizer-light .bg-black\/30,
+:root:not([data-theme="dark"]) .organizer-light .bg-black\/40,
+:root:not([data-theme="dark"]) .organizer-light [class*="from-gray-900"],
+:root:not([data-theme="dark"]) .organizer-light [class*="from-gray-950"],
+:root:not([data-theme="dark"]) .organizer-light [class*="via-gray-900"],
+:root:not([data-theme="dark"]) .organizer-light [class*="to-gray-900"],
+:root:not([data-theme="dark"]) .organizer-light [class*="to-gray-950"] {
+  background-color: #ffffff !important;
+}
+
+:root:not([data-theme="dark"]) .organizer-light [class*="from-purple-900"],
+:root:not([data-theme="dark"]) .organizer-light [class*="via-purple-900"],
+:root:not([data-theme="dark"]) .organizer-light [class*="to-purple-900"] {
+  --tw-gradient-from: rgba(106, 49, 127, 0.12) var(--tw-gradient-from-position) !important;
+  --tw-gradient-via: rgba(255, 255, 255, 0.96) var(--tw-gradient-via-position) !important;
+  --tw-gradient-to: rgba(106, 49, 127, 0.06) var(--tw-gradient-to-position) !important;
+}
+
+:root:not([data-theme="dark"]) .organizer-light .text-white,
+:root:not([data-theme="dark"]) .organizer-light .text-gray-400,
+:root:not([data-theme="dark"]) .organizer-light .text-gray-500 {
+  color: #6a317f !important;
+}
+
+:root:not([data-theme="dark"]) .organizer-light .border-gray-700,
+:root:not([data-theme="dark"]) .organizer-light .border-gray-800,
+:root:not([data-theme="dark"]) .organizer-light .border-gray-900 {
+  border-color: rgba(106, 49, 127, 0.2) !important;
+}
+
+:root:not([data-theme="dark"]) .organizer-light .shadow-black\/30,
+:root:not([data-theme="dark"]) .organizer-light .shadow-black\/40,
+:root:not([data-theme="dark"]) .organizer-light .shadow-black\/25 {
+  box-shadow: 0 16px 36px -24px rgba(106, 49, 127, 0.28) !important;
+}
+
+/* Global dark-mode overrides for existing utility-heavy pages */
+[data-theme="dark"] body,
+[data-theme="dark"] #root {
+  background: var(--bg-main) !important;
+  color: #f5ecff !important;
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-white\/90,
+[data-theme="dark"] .bg-white\/95,
+[data-theme="dark"] .bg-white\/80,
+[data-theme="dark"] .bg-white\/70,
+[data-theme="dark"] .bg-white\/60,
+[data-theme="dark"] .bg-white\/50,
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-slate-200,
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-gray-200,
+[data-theme="dark"] .bg-slate-50,
+[data-theme="dark"] .bg-gray-50 {
+  background-color: rgba(22, 18, 40, 0.86) !important;
+  backdrop-filter: blur(8px) saturate(130%);
+}
+
+/* Catch arbitrary light backgrounds like bg-[#f6efff], bg-[#ffffff], etc. */
+[data-theme="dark"] [class*="bg-[#f"],
+[data-theme="dark"] [class*="bg-[#F"],
+[data-theme="dark"] [class*="bg-[#fff"],
+[data-theme="dark"] [class*="bg-[#FFF"] {
+  background-color: rgba(18, 14, 32, 0.9) !important;
+}
+
+[data-theme="dark"] .bg-black {
+  background-color: #090c14 !important;
+}
+
+[data-theme="dark"] .bg-purple-50,
+[data-theme="dark"] .bg-purple-100,
+[data-theme="dark"] .bg-purple-200,
+[data-theme="dark"] .bg-indigo-50,
+[data-theme="dark"] .bg-indigo-100,
+[data-theme="dark"] .bg-fuchsia-50 {
+  background-color: rgba(46, 28, 76, 0.9) !important;
+}
+
+/* Remove white/pastel gradient stops in dark mode */
+[data-theme="dark"] .from-white,
+[data-theme="dark"] .via-white,
+[data-theme="dark"] .to-white,
+[data-theme="dark"] [class*="from-[#f"],
+[data-theme="dark"] [class*="via-[#f"],
+[data-theme="dark"] [class*="to-[#f"],
+[data-theme="dark"] [class*="from-[#F"],
+[data-theme="dark"] [class*="via-[#F"],
+[data-theme="dark"] [class*="to-[#F"] {
+  --tw-gradient-from: rgba(10, 12, 20, 0.98) var(--tw-gradient-from-position) !important;
+  --tw-gradient-via: rgba(30, 20, 54, 0.95) var(--tw-gradient-via-position) !important;
+  --tw-gradient-to: rgba(20, 14, 36, 0.98) var(--tw-gradient-to-position) !important;
+}
+
+[data-theme="dark"] img,
+[data-theme="dark"] video,
+[data-theme="dark"] canvas,
+[data-theme="dark"] picture,
+[data-theme="dark"] svg {
+  opacity: 1 !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+
+/* Keep image boxes clear and readable in dark mode */
+[data-theme="dark"] .bg-cover,
+[data-theme="dark"] [style*="background-image"] {
+  background-color: #140f24;
+  background-blend-mode: normal;
+  filter: brightness(1.08) contrast(1.06) saturate(1.06);
+}
+
+[data-theme="dark"] img.object-cover,
+[data-theme="dark"] img.object-contain,
+[data-theme="dark"] .overflow-hidden > img {
+  object-position: center;
+  filter: brightness(1.08) contrast(1.05) saturate(1.05) !important;
+}
+
+[data-theme="dark"] .shadow-lg,
+[data-theme="dark"] .shadow-xl,
+[data-theme="dark"] [class*="shadow-"] {
+  box-shadow: 0 14px 42px -26px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(181, 149, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-black,
+[data-theme="dark"] .text-\[\#1f0f26\] {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-gray-700,
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-slate-400,
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-\[\#6a317f\]\/70,
+[data-theme="dark"] .text-\[\#6a317f\]\/75 {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300,
+[data-theme="dark"] .border-slate-300,
+[data-theme="dark"] .border-gray-400,
+[data-theme="dark"] .border-white,
+[data-theme="dark"] .border-white\/10,
+[data-theme="dark"] .border-white\/20,
+[data-theme="dark"] .border-white\/30,
+[data-theme="dark"] .border-white\/40,
+[data-theme="dark"] .border-white\/50,
+[data-theme="dark"] .border-\[\#6a317f\]\/20,
+[data-theme="dark"] .border-\[\#6a317f\]\/25 {
+  border-color: rgba(181, 149, 255, 0.24) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background-color: rgba(27, 18, 50, 0.9) !important;
+  color: #ffffff !important;
+  border-color: rgba(181, 149, 255, 0.26) !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #e9dcff !important;
+}
+
+[data-theme="dark"] button,
+[data-theme="dark"] a,
+[data-theme="dark"] span,
+[data-theme="dark"] p,
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6,
+[data-theme="dark"] label,
+[data-theme="dark"] li,
+[data-theme="dark"] small,
+[data-theme="dark"] strong {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] button {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+[data-theme="dark"] button:hover {
+  box-shadow: 0 12px 26px -20px rgba(191, 149, 255, 0.75);
+}
+
+/* Attendee profile: ensure readable white text in dark mode */
+[data-theme="dark"] .attendee-profile [class*="text-[#6a317f"],
+[data-theme="dark"] .attendee-profile [class*="text-[#2b1833"],
+[data-theme="dark"] .attendee-profile [class*="text-[#6a317f]/"],
+[data-theme="dark"] .attendee-profile [class*="text-[#2b1833]/"] {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .attendee-profile [class*="bg-[#6a317f]/"],
+[data-theme="dark"] .attendee-profile [class*="bg-white"],
+[data-theme="dark"] .attendee-profile [class*="via-[#f"],
+[data-theme="dark"] .attendee-profile [class*="from-[#f"],
+[data-theme="dark"] .attendee-profile [class*="to-[#f"] {
+  background-color: rgba(21, 18, 37, 0.9) !important;
+}
+
+/* Attendee event details: keep all text white in dark mode */
+[data-theme="dark"] .attendee-event-detail [class*="text-slate-"],
+[data-theme="dark"] .attendee-event-detail [class*="text-gray-"],
+[data-theme="dark"] .attendee-event-detail [class*="text-[#"],
+[data-theme="dark"] .attendee-event-detail p,
+[data-theme="dark"] .attendee-event-detail h1,
+[data-theme="dark"] .attendee-event-detail h2,
+[data-theme="dark"] .attendee-event-detail h3,
+[data-theme="dark"] .attendee-event-detail h4,
+[data-theme="dark"] .attendee-event-detail h5,
+[data-theme="dark"] .attendee-event-detail h6,
+[data-theme="dark"] .attendee-event-detail span,
+[data-theme="dark"] .attendee-event-detail label,
+[data-theme="dark"] .attendee-event-detail li {
+  color: #ffffff !important;
+}
+
+/* Ticket booking panel: force high-contrast dark mode text */
+[data-theme="dark"] .attendee-event-detail .booking-panel,
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="bg-white"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="bg-slate-50"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="bg-indigo-50"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="bg-purple-50"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="bg-purple-100"] {
+  background-color: rgba(21, 18, 37, 0.94) !important;
+}
+
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="text-slate-"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="text-gray-"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="text-purple-"],
+[data-theme="dark"] .attendee-event-detail .booking-panel [class*="text-indigo-"] {
+  color: #ffffff !important;
+}
+
+/* Attendee routes: force white text in dark mode */
+[data-theme="dark"] .attendee-side,
+[data-theme="dark"] .attendee-side p,
+[data-theme="dark"] .attendee-side h1,
+[data-theme="dark"] .attendee-side h2,
+[data-theme="dark"] .attendee-side h3,
+[data-theme="dark"] .attendee-side h4,
+[data-theme="dark"] .attendee-side h5,
+[data-theme="dark"] .attendee-side h6,
+[data-theme="dark"] .attendee-side span,
+[data-theme="dark"] .attendee-side label,
+[data-theme="dark"] .attendee-side a,
+[data-theme="dark"] .attendee-side li,
+[data-theme="dark"] .attendee-side small,
+[data-theme="dark"] .attendee-side strong,
+[data-theme="dark"] .attendee-side [class*="text-slate-"],
+[data-theme="dark"] .attendee-side [class*="text-gray-"],
+[data-theme="dark"] .attendee-side [class*="text-purple-"],
+[data-theme="dark"] .attendee-side [class*="text-indigo-"],
+[data-theme="dark"] .attendee-side [class*="text-[#"] {
+  color: #ffffff !important;
 }

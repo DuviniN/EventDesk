@@ -7,10 +7,12 @@ import { useAuth } from "../../features/auth/useAuth";
 import { createEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
 import Navbar from "../../components/common/Navbar";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function CreateEvent() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -33,11 +35,8 @@ export default function CreateEvent() {
     if (!file) return;
 
     const isImage = file.type.startsWith("image/");
-    const isUnder2mb = file.size <= 2 * 1024 * 1024;
-    if (!isImage || !isUnder2mb) {
-      const message = !isImage
-        ? "Please select an image file"
-        : "Image must be under 2MB";
+    if (!isImage) {
+      const message = "Please select an image file";
       setErrors((prev) => ({ ...prev, imageUrl: message }));
       return;
     }
@@ -179,23 +178,23 @@ export default function CreateEvent() {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen pt-20 pb-12 bg-black">
+      <div className={`min-h-screen pt-20 pb-12 ${isDark ? "bg-black text-white" : "bg-white text-black"}`}>
         <div className="max-w-4xl mx-auto px-6">
         {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center space-x-2 text-purple-400 hover:text-purple-300 transition-colors mb-6"
+            className={`flex items-center space-x-2 transition-colors mb-6 ${isDark ? "text-purple-300 hover:text-purple-200" : "text-purple-700 hover:text-purple-800"}`}
           >
             <ArrowLeft size={20} />
             <span>Back to Events</span>
           </button>
-          <h1 className="text-4xl font-bold text-white mb-2">Create New Event</h1>
-          <p className="text-gray-400">Fill in the details to create your event</p>
+          <h1 className={`text-4xl font-bold mb-2 ${isDark ? "text-white" : "text-black"}`}>Create New Event</h1>
+          <p className={isDark ? "text-gray-400" : "text-slate-600"}>Fill in the details to create your event</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6 bg-gray-900/50 border border-gray-800 rounded-xl p-8">
+        <form onSubmit={handleSubmit} className={`space-y-6 rounded-xl p-8 ${isDark ? "bg-gray-900/50 border border-gray-800" : "bg-white border border-purple-100 shadow-sm"}`}>
           {errors.submit && (
             <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg text-sm">
               {errors.submit}
@@ -204,7 +203,7 @@ export default function CreateEvent() {
 
           {/* Basic Info */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Basic Information</h2>
+            <h2 className={`text-xl font-semibold mb-4 ${isDark ? "text-white" : "text-black"}`}>Basic Information</h2>
             <div className="space-y-4">
               <Input
                 label="Event Title"
@@ -218,7 +217,7 @@ export default function CreateEvent() {
               />
 
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-white mb-2">
+                <label htmlFor="description" className={`block text-sm font-medium mb-2 ${isDark ? "text-white" : "text-black"}`}>
                   Description <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -228,7 +227,7 @@ export default function CreateEvent() {
                   value={formData.description}
                   onChange={handleChange}
                   rows="4"
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors ${isDark ? "bg-gray-800 border border-gray-700 text-white placeholder-gray-400" : "bg-white border border-purple-200 text-black placeholder-slate-500"}`}
                   required
                 />
                 {errors.description && (
@@ -237,7 +236,7 @@ export default function CreateEvent() {
               </div>
 
               <div>
-                <label htmlFor="categories" className="block text-sm font-medium text-white mb-2">
+                <label htmlFor="categories" className={`block text-sm font-medium mb-2 ${isDark ? "text-white" : "text-black"}`}>
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -245,7 +244,7 @@ export default function CreateEvent() {
                   name="categories"
                   value={formData.categories}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors ${isDark ? "bg-gray-800 border border-gray-700 text-white" : "bg-white border border-purple-200 text-black"}`}
                   required
                 >
                   <option value="" disabled>Select a category</option>
@@ -260,11 +259,11 @@ export default function CreateEvent() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white mb-2">
+                <label className={`block text-sm font-medium mb-2 ${isDark ? "text-white" : "text-black"}`}>
                   Event Image <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-4">
-                  <div className="h-16 w-24 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden flex items-center justify-center text-xs text-gray-400">
+                  <div className={`h-16 w-24 rounded-lg overflow-hidden flex items-center justify-center text-xs ${isDark ? "bg-gray-800 border border-gray-700 text-gray-400" : "bg-white border border-purple-200 text-slate-500"}`}>
                     {formData.imageUrl ? (
                       <img src={formData.imageUrl} alt="Preview" className="h-full w-full object-cover" />
                     ) : (
@@ -275,7 +274,7 @@ export default function CreateEvent() {
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
-                    className="text-sm text-gray-200"
+                    className={`text-sm ${isDark ? "text-gray-200" : "text-black"}`}
                   />
                 </div>
                 {errors.imageUrl && (
@@ -287,7 +286,7 @@ export default function CreateEvent() {
 
           {/* Date & Time */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Date & Time</h2>
+            <h2 className={`text-xl font-semibold mb-4 ${isDark ? "text-white" : "text-black"}`}>Date & Time</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Start Date & Time"
@@ -313,7 +312,7 @@ export default function CreateEvent() {
 
           {/* Venue */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Venue Information</h2>
+            <h2 className={`text-xl font-semibold mb-4 ${isDark ? "text-white" : "text-black"}`}>Venue Information</h2>
             <div className="space-y-4">
               <Input
                 label="Venue Name"
@@ -352,7 +351,7 @@ export default function CreateEvent() {
 
           {/* Capacity */}
           <div>
-            <h2 className="text-xl font-semibold text-white mb-4">Event Details</h2>
+            <h2 className={`text-xl font-semibold mb-4 ${isDark ? "text-white" : "text-black"}`}>Event Details</h2>
             <Input
               label="Capacity"
               type="number"
@@ -367,7 +366,7 @@ export default function CreateEvent() {
           </div>
 
           {/* Submit */}
-          <div className="pt-6 border-t border-gray-800">
+          <div className={`pt-6 border-t ${isDark ? "border-gray-800" : "border-purple-100"}`}>
             <Button
               type="submit"
               variant="primary"
