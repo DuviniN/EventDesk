@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import useAuth from "../../features/auth/useAuth";
 import { getMyTickets } from "../../features/events/eventApi";
 import Navbar from "../../components/common/Navbar";
+import { useTheme } from "../../context/ThemeContext";
 
 const statusStyles = {
   valid: "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -128,6 +129,7 @@ function TicketCard({ ticket, showEventMeta = true }) {
 }
 
 export default function Profile() {
+  const { isDark } = useTheme();
   const { user, updateProfile } = useAuth();
   const [profileForm, setProfileForm] = useState({
     name: user?.name || "",
@@ -240,7 +242,7 @@ export default function Profile() {
   }, [upcomingTickets]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f7f2ff] via-white to-[#f3ecff] text-[#2b1833] pb-16">
+    <div className={`attendee-profile min-h-screen pb-16 ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#131726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f7f2ff] via-white to-[#f3ecff] text-[#2b1833]"}`}>
       <Navbar />
       <div className="absolute inset-x-0 top-0 h-96 bg-[radial-gradient(circle_at_20%_20%,rgba(106,49,127,0.14),transparent_35%),radial-gradient(circle_at_80%_10%,rgba(106,49,127,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.2),transparent)]" aria-hidden />
       <div className="max-w-6xl mx-auto px-6 pt-24 relative">
@@ -320,7 +322,7 @@ export default function Profile() {
                   to="/events"
                   className="inline-flex items-center gap-2 rounded-xl bg-white text-[#6a317f] border border-[#6a317f]/25 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-[#6a317f]/20 transition hover:border-[#6a317f]/45"
                 >
-                  View events
+                  view details
                 </Link>
               </div>
             </div>

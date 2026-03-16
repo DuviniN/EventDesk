@@ -8,10 +8,12 @@ import { getOrganizerEvents, publishEvent, cancelEvent, deleteEvent, setEventChe
 import { getTicketTypes, createTicketType, updateTicketType } from "../../features/tickets/ticketsApi";
 import toast from "react-hot-toast";
 import Navbar from "../../components/common/Navbar";
+import { useTheme } from "../../context/ThemeContext";
 
 export default function ManageEvents() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { isDark } = useTheme();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
@@ -193,7 +195,9 @@ export default function ManageEvents() {
   const getStatusBadge = (status) => {
     const statusConfig = {
       draft: { bg: 'bg-gray-700', text: 'text-gray-100', icon: AlertCircle, label: 'Draft' },
-      published: { bg: 'bg-green-700', text: 'text-green-100', icon: CheckCircle, label: 'Published' },
+      published: isDark
+        ? { bg: 'bg-black border border-white/25', text: 'text-white', icon: CheckCircle, label: 'Published' }
+        : { bg: 'bg-green-700', text: 'text-green-100', icon: CheckCircle, label: 'Published' },
       cancelled: { bg: 'bg-red-700', text: 'text-red-100', icon: AlertCircle, label: 'Cancelled' }
     };
     const config = statusConfig[status] || statusConfig.draft;
