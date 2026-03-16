@@ -52,6 +52,24 @@ const getPrimaryCategory = (event) => {
   return event.category || "";
 };
 
+function getCountdownParts(startAt) {
+  if (!startAt) return null;
+  const target = new Date(startAt).getTime();
+  if (Number.isNaN(target)) return null;
+
+  const diff = target - Date.now();
+  if (diff <= 0) {
+    return { ended: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+
+  return { ended: false, days, hours, minutes, seconds };
+}
+
 // ── Quantity stepper ───────────────────────────────────────────
 function Stepper({ value, min = 0, max = 10, onChange }) {
   return (
@@ -89,6 +107,7 @@ export default function EventDetail() {
   const [purchasing, setPurchasing] = useState(false);
   const [booked, setBooked] = useState(false);
   const [error, setError] = useState(null);
+  const [countdown, setCountdown] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -113,6 +132,20 @@ export default function EventDetail() {
     }
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (!event?.startAt) {
+      setCountdown(null);
+      return;
+    }
+
+    setCountdown(getCountdownParts(event.startAt));
+    const timer = setInterval(() => {
+      setCountdown(getCountdownParts(event.startAt));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [event?.startAt]);
 
   const setQty = useCallback((ttId, val) => {
     setQuantities((prev) => ({ ...prev, [ttId]: val }));
@@ -353,6 +386,42 @@ export default function EventDetail() {
                 </div>
 
                 <div className="p-6 space-y-5">
+                  {countdown && (
+                    <div className={`rounded-2xl border p-4 ${countdown.ended ? (isDark ? "border-emerald-400/30 bg-emerald-500/10" : "border-emerald-200 bg-emerald-50") : (isDark ? "border-purple-400/30 bg-purple-500/10" : "border-purple-200 bg-purple-50")}`}>
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <p className={`text-xs uppercase tracking-[0.14em] font-semibold ${isDark ? "text-white/80" : "text-slate-600"}`}>
+                          Event countdown
+                        </p>
+                        <Clock size={14} className={isDark ? "text-white/80" : "text-purple-700"} />
+                      </div>
+
+                      {countdown.ended ? (
+                        <p className={`text-sm font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                          Event has started
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.days).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Days</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.hours).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Hours</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.minutes).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Mins</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.seconds).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Secs</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {loadingTickets && (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 size={22} className="animate-spin text-purple-500" />
