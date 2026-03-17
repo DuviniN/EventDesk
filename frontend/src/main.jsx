@@ -6,14 +6,17 @@ import { Provider } from "react-redux";
 import { store } from "./app/store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
+import { ThemeProvider } from "./context/ThemeContext";
 
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <Provider store={store}>
-    <QueryClientProvider client={queryClient}>
-      <App />
-      <Toaster position="top-right" />
-    </QueryClientProvider>
-  </Provider>
+  <ThemeProvider>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>
+        <App />
+        <Toaster position="top-right" />
+      </QueryClientProvider>
+    </Provider>
+  </ThemeProvider>
 );

@@ -10,6 +10,9 @@ router.get("/organizer/overview", auth(["organizer"]), eventController.getOrgani
 router.post("/organizer/reminders/run", auth(["organizer"]), eventController.sendTomorrowReminders);
 router.get("/organizer/attendees", auth(["organizer"]), ticketController.getOrganizerAttendees);
 
+// Public platform stats for landing page
+router.get("/stats", eventController.getPlatformStats);
+
 // Organizer: set per-event check-in code
 router.post("/:id/checkin/code", auth(["organizer"]), eventController.setCheckInCode);
 
