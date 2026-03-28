@@ -6,6 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { useAuth } from "../../features/auth/useAuth";
 import { getEvent, updateEvent } from "../../features/events/eventApi";
 import toast from "react-hot-toast";
+import GoogleMapEmbed from "../../components/ui/GoogleMapEmbed";
+import SeatMapEditor from "../../components/ui/SeatMapEditor";
+import { getSeatingLayout, upsertSeatingLayout, listSeats, replaceSeats } from "../../features/seating/seatingApi";
 
 export default function EditEvent() {
   const navigate = useNavigate();
@@ -28,24 +31,16 @@ export default function EditEvent() {
     status: "draft"
   });
   const [errors, setErrors] = useState({});
+  const [layout, setLayout] = useState(null);
+  const [seats, setSeats] = useState([]);
+  const [loadingSeating, setLoadingSeating] = useState(false);
+  const [savingSeating, setSavingSeating] = useState(false);
 
-  // redirect if not organizer
-  if (isAuthenticated && user?.role !== "organizer") {
-    return (
-      <div className="min-h-screen pt-20 flex items-center justify-center bg-black">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-4">Access Denied</h1>
-          <p className="text-gray-400 mb-8">Only organizers can edit events.</p>
-          <Button onClick={() => navigate("/")} variant="primary">
-            Back to Home
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const accessDenied = isAuthenticated && user?.role !== "organizer";
 
   useEffect(() => {
     async function fetch() {
+      if (accessDenied) return;
       try {
         const { event } = await getEvent(id);
         if (!event) {
@@ -68,6 +63,30 @@ export default function EditEvent() {
           capacity: event.capacity || "",
           status: event.status || "draft"
         });
+
+        // load seating layout (if any) so organizer can edit/enable reserved seating
+        setLoadingSeating(true);
+        try {
+          const layoutRes = await getSeatingLayout(id);
+          setLayout(layoutRes.layout);
+
+          if (layoutRes.layout) {
+            const seatsRes = await listSeats(id);
+            setSeats((seatsRes.seats || []).map(s => ({
+              x: s.x,
+              y: s.y,
+              category: s.category,
+              label: s.label || { section: '', row: '', number: '' },
+              isActive: s.isActive !== false
+            })));
+          } else {
+            setSeats([]);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingSeating(false);
+        }
       } catch (err) {
         console.error(err);
         toast.error('Failed to load event');
@@ -77,7 +96,39 @@ export default function EditEvent() {
       }
     }
     fetch();
-  }, [id, navigate]);
+  }, [id, navigate, accessDenied]);
+
+  const handleUploadLayout = async ({ assetType, assetDataUrl, publish }) => {
+    setSavingSeating(true);
+    try {
+      const res = await upsertSeatingLayout(id, { assetType, assetDataUrl, publish });
+      setLayout(res.layout);
+      toast.success('Layout saved');
+    } catch (e) {
+      toast.error(e.message || 'Failed to save layout');
+    } finally {
+      setSavingSeating(false);
+    }
+  };
+
+  const handleSaveSeats = async (nextSeats) => {
+    setSavingSeating(true);
+    try {
+      await replaceSeats(id, { seats: nextSeats.map(s => ({
+        x: s.x,
+        y: s.y,
+        category: s.category,
+        label: s.label,
+        isActive: s.isActive !== false
+      })) });
+      setSeats(nextSeats);
+      toast.success('Seating saved');
+    } catch (e) {
+      toast.error(e.message || 'Failed to save seats');
+    } finally {
+      setSavingSeating(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -159,6 +210,20 @@ export default function EditEvent() {
     return (
       <div className="min-h-screen pt-20 flex items-center justify-center bg-black">
         <div className="text-gray-400">Loading event...</div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center bg-black">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-white mb-4">Access Denied</h1>
+          <p className="text-gray-400 mb-8">Only organizers can edit events.</p>
+          <Button onClick={() => navigate("/")} variant="primary">
+            Back to Home
+          </Button>
+        </div>
       </div>
     );
   }
@@ -287,6 +352,31 @@ export default function EditEvent() {
                 error={errors['venue.city']}
                 required
               />
+            </div>
+
+            <div className="mt-4 rounded-xl border border-gray-800 bg-gray-900/40 p-4">
+              <div className="text-sm font-semibold text-white mb-3">Location preview</div>
+              <GoogleMapEmbed venue={formData.venue} isDark height={220} />
+            </div>
+          </div>
+
+          {/* Reserved seating (indoor) */}
+          <div>
+            <h2 className="text-xl font-semibold text-white mb-4">Indoor Seating (Reserved)</h2>
+            <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4">
+              {loadingSeating ? (
+                <div className="text-sm text-gray-400">Loading seating…</div>
+              ) : (
+                <SeatMapEditor
+                  key={layout?._id || layout?.version || 'no-layout'}
+                  layout={layout}
+                  initialSeats={seats}
+                  onUploadAsset={handleUploadLayout}
+                  onSaveSeats={handleSaveSeats}
+                  saving={savingSeating}
+                  isDark
+                />
+              )}
             </div>
           </div>
           {/* Capacity */}
