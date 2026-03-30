@@ -38,6 +38,7 @@ exports.upsertLayout = async (req, res) => {
     if (!event) return res.status(404).json({ message: 'Event not found' });
     if (event.organizerId.toString() !== organizerId) return res.status(403).json({ message: 'Not authorized' });
     if (event.status === 'cancelled') return res.status(400).json({ message: 'Cancelled events cannot be updated' });
+    if (event.status === 'published') return res.status(400).json({ message: 'Published events cannot be updated' });
 
     const type = assetType === 'svg' ? 'svg' : 'image';
     const dataUrl = typeof assetDataUrl === 'string' ? assetDataUrl : '';
@@ -144,6 +145,9 @@ exports.replaceSeats = async (req, res) => {
     if (event.organizerId.toString() !== organizerId) return res.status(403).json({ message: 'Not authorized' });
     if (event.status === 'cancelled') {
       return res.status(400).json({ message: 'Cancelled events cannot be updated' });
+    }
+    if (event.status === 'published') {
+      return res.status(400).json({ message: 'Published events cannot be updated' });
     }
 
     const layout = await VenueLayout.findOne({ eventId });

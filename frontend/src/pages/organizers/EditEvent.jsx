@@ -48,6 +48,12 @@ export default function EditEvent() {
           navigate('/manage-events');
           return;
         }
+
+        if (event.status === 'published') {
+          toast.error('This event is published and cannot be edited.');
+          navigate('/manage-events');
+          return;
+        }
         // convert to local form format
         setFormData({
           title: event.title || "",
