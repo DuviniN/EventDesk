@@ -1,31 +1,40 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { ArrowLeft, Mail } from "lucide-react";
+import { ArrowLeft, Mail, Check } from "lucide-react";
 import { forgotPassword } from "../../features/auth/authApi";
 import toast from "react-hot-toast";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [resetToken, setResetToken] = useState("");
+  const [step, setStep] = useState("request");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const data = await forgotPassword({ email });
-      setSent(true);
-      setResetToken(data.resetToken);
-      toast.success("Password reset token generated!");
+      await forgotPassword({ email });
+      setStep("code");
+      toast.success("Reset code sent to your email");
     } catch (error) {
-      toast.error(error.message || "Failed to generate reset token");
+      toast.error(error.message || "Failed to send reset code");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleContinue = (e) => {
+    e.preventDefault();
+    if (!code.trim()) {
+      toast.error("Enter the code we emailed you");
+      return;
+    }
+    navigate(`/reset-password?email=${encodeURIComponent(email)}&code=${encodeURIComponent(code.trim())}`);
   };
 
   return (
@@ -78,7 +87,7 @@ export default function ForgotPassword() {
             <p className="text-gray-400">Enter your email to receive reset instructions.</p>
           </div>
 
-          {!sent ? (
+          {step === "request" ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
                 label="Email Address"
@@ -96,39 +105,39 @@ export default function ForgotPassword() {
                 className="w-full"
                 disabled={loading}
               >
-                {loading ? 'Sending...' : 'Send Reset Instructions'}
+                {loading ? 'Sending...' : 'Send reset code'}
               </Button>
             </form>
           ) : (
-            <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-6 rounded-lg">
-              <h3 className="font-semibold mb-2">Reset Token Generated!</h3>
-              <p className="text-sm mb-4 text-gray-300">
-                Your password reset token for <strong className="text-white">{email}</strong>:
-              </p>
-              
-              <div className="bg-gray-800 p-3 rounded mb-4 break-all">
-                <code className="text-purple-400 text-xs">{resetToken}</code>
+            <form onSubmit={handleContinue} className="space-y-4">
+              <div className="bg-green-500/10 border border-green-500 text-green-500 px-4 py-3 rounded-lg flex items-center gap-2 text-sm">
+                <Check size={16} /> Code sent to {email}. Check your inbox.
               </div>
-              
-              <p className="text-xs text-gray-400 mb-4">
-                Note: In production, this would be sent via email. For development, use the link below.
-              </p>
-              
-              <Link to={`/reset-password?token=${resetToken}`}>
-                <Button variant="primary" className="w-full">
-                  Reset Password Now
-                </Button>
-              </Link>
-              
-              <p className="text-xs text-gray-400 mt-4">
-                <button 
-                  onClick={() => { setSent(false); setResetToken(""); }} 
-                  className="text-purple-400 hover:text-purple-300 underline"
-                >
-                  Generate new token
-                </button>
-              </p>
-            </div>
+              <Input
+                label="Enter the 6-digit code"
+                type="text"
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+              />
+              <Button 
+                type="submit" 
+                variant="primary" 
+                size="lg" 
+                className="w-full"
+                disabled={loading}
+              >
+                Continue
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setStep("request"); setCode(""); }}
+                className="text-xs text-gray-400 hover:text-purple-300"
+              >
+                Use a different email
+              </button>
+            </form>
           )}
 
           <div className="mt-6 text-center">

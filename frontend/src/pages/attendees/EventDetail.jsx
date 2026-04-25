@@ -4,7 +4,11 @@ import Navbar from "../../components/common/Navbar";
 import Footer from "../../components/common/Footer";
 import { getEvent } from "../../features/events/eventApi";
 import { getTicketTypes, purchaseTickets } from "../../features/tickets/ticketsApi";
+import { getSeatingLayout, listSeats, createSeatHold } from "../../features/seating/seatingApi";
 import toast from "react-hot-toast";
+import { useTheme } from "../../context/ThemeContext";
+import GoogleMapEmbed from "../../components/ui/GoogleMapEmbed";
+import SeatPicker from "../../components/ui/SeatPicker";
 import {
   ArrowLeft,
   CalendarDays,
@@ -26,6 +30,47 @@ function formatVenue(venue) {
     return [venue.name, venue.address, venue.city].filter(Boolean).join(", ");
   }
   return String(venue);
+}
+
+const CATEGORY_LABELS = {
+  concert: "Concert",
+  theatre: "Theatre",
+  family: "Family",
+  other: "Other"
+};
+
+const TIER_LABELS = {
+  "vip": "VIP",
+  "premium": "Premium",
+  "regular": "Regular",
+  "early-bird": "Early Bird",
+  "student": "Student Ticket"
+};
+
+const normalizeCategory = (value = "") => value.toString().trim().toLowerCase();
+
+const getPrimaryCategory = (event) => {
+  if (!event) return "";
+  if (Array.isArray(event.categories) && event.categories.length) return event.categories[0];
+  return event.category || "";
+};
+
+function getCountdownParts(startAt) {
+  if (!startAt) return null;
+  const target = new Date(startAt).getTime();
+  if (Number.isNaN(target)) return null;
+
+  const diff = target - Date.now();
+  if (diff <= 0) {
+    return { ended: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
+  }
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  const seconds = Math.floor((diff / 1000) % 60);
+
+  return { ended: false, days, hours, minutes, seconds };
 }
 
 // ── Quantity stepper ───────────────────────────────────────────
@@ -55,15 +100,22 @@ function Stepper({ value, min = 0, max = 10, onChange }) {
 export default function EventDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isDark } = useTheme();
 
   const [event, setEvent] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [quantities, setQuantities] = useState({});
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingSeating, setLoadingSeating] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [reserving, setReserving] = useState(false);
+  const [layout, setLayout] = useState(null);
+  const [seatList, setSeatList] = useState([]);
+  const [reservedCount, setReservedCount] = useState(0);
   const [booked, setBooked] = useState(false);
   const [error, setError] = useState(null);
+  const [countdown, setCountdown] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -78,6 +130,25 @@ export default function EventDetail() {
         const init = {};
         types.forEach((t) => { init[t._id] = 0; });
         setQuantities(init);
+
+        if (evtData.event?.seatingMode === 'reserved') {
+          setLoadingSeating(true);
+          try {
+            const [layoutRes, seatsRes] = await Promise.all([
+              getSeatingLayout(id),
+              listSeats(id)
+            ]);
+            setLayout(layoutRes.layout);
+            setSeatList(seatsRes.seats || []);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setLoadingSeating(false);
+          }
+        } else {
+          setLayout(null);
+          setSeatList([]);
+        }
       } catch (err) {
         console.error(err);
         setError("Could not load event.");
@@ -89,6 +160,20 @@ export default function EventDetail() {
     load();
   }, [id]);
 
+  useEffect(() => {
+    if (!event?.startAt) {
+      setCountdown(null);
+      return;
+    }
+
+    setCountdown(getCountdownParts(event.startAt));
+    const timer = setInterval(() => {
+      setCountdown(getCountdownParts(event.startAt));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [event?.startAt]);
+
   const setQty = useCallback((ttId, val) => {
     setQuantities((prev) => ({ ...prev, [ttId]: val }));
   }, []);
@@ -98,6 +183,37 @@ export default function EventDetail() {
   }, 0);
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
+
+  const isReservedSeating = event?.seatingMode === 'reserved';
+
+  const handleReserveAndBook = async (seatIds) => {
+    if (!seatIds || seatIds.length === 0) {
+      toast.error('Please select seats.');
+      return;
+    }
+
+    setReserving(true);
+    try {
+      const holdRes = await createSeatHold(id, { seatIds });
+      setReservedCount(seatIds.length);
+
+      setPurchasing(true);
+      await purchaseTickets(id, { seatHoldId: holdRes?.hold?.id });
+      setBooked(true);
+      toast.success('Booking confirmed!');
+    } catch (err) {
+      toast.error(err?.message || 'Seat reservation failed. Please try again.');
+      try {
+        const seatsRes = await listSeats(id);
+        setSeatList(seatsRes.seats || []);
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setPurchasing(false);
+      setReserving(false);
+    }
+  };
 
   const handleBook = async () => {
     const items = ticketTypes
@@ -123,21 +239,22 @@ export default function EventDetail() {
 
   // ── Success screen ───────────────────────────────────────────
   if (booked) {
+    const bookedTicketsCount = isReservedSeating ? (reservedCount || 0) : totalTickets;
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className={`attendee-event-detail min-h-screen ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#121726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f6efff] via-white to-[#f9f5ff] text-slate-900"}`}>
         <Navbar />
         <div className="pt-32 pb-20 flex flex-col items-center justify-center px-6 text-center">
-          <div className="w-20 h-20 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center mb-6">
-            <CheckCircle2 size={40} className="text-green-400" />
+          <div className="w-20 h-20 rounded-full bg-green-100 border border-green-300 flex items-center justify-center mb-6">
+            <CheckCircle2 size={40} className="text-green-500" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Booking Confirmed!</h1>
-          <p className="text-gray-400 mb-2 text-base">
-            You successfully booked <span className="text-white font-semibold">{totalTickets} ticket{totalTickets !== 1 ? "s" : ""}</span> for
+          <h1 className="text-3xl font-bold mb-2 text-slate-900">Booking Confirmed!</h1>
+          <p className="text-slate-600 mb-2 text-base">
+            You successfully booked <span className="text-slate-900 font-semibold">{bookedTicketsCount} ticket{bookedTicketsCount !== 1 ? "s" : ""}</span> for
           </p>
-          <p className="text-purple-400 font-semibold text-lg mb-8">{event?.title}</p>
+          <p className="text-purple-600 font-semibold text-lg mb-8">{event?.title}</p>
           <button
             onClick={() => navigate("/attendee-dashboard")}
-            className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-purple-900/40"
+            className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-purple-300/60"
           >
             Back to Dashboard
           </button>
@@ -150,18 +267,18 @@ export default function EventDetail() {
   // ── Loading / error ──────────────────────────────────────────
   if (loadingEvent) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className={`attendee-event-detail min-h-screen flex items-center justify-center ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#121726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f6efff] via-white to-[#f9f5ff] text-slate-900"}`}>
         <Navbar />
-        <Loader2 size={32} className="animate-spin text-purple-400" />
+        <Loader2 size={32} className="animate-spin text-purple-500" />
       </div>
     );
   }
 
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className={`attendee-event-detail min-h-screen ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#121726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f6efff] via-white to-[#f9f5ff] text-slate-900"}`}>
         <Navbar />
-        <div className="pt-32 text-center text-red-400 px-6">{error || "Event not found."}</div>
+        <div className="pt-32 text-center text-red-500 px-6">{error || "Event not found."}</div>
       </div>
     );
   }
@@ -179,17 +296,65 @@ export default function EventDetail() {
     ? endDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
     : "";
 
+  const primaryCategory = getPrimaryCategory(event);
+  const displayCategory = CATEGORY_LABELS[normalizeCategory(primaryCategory)] || primaryCategory;
+  const imageSrc = event.imageUrl || "https://images.unsplash.com/photo-1464375117522-1311d6a5b81f?auto=format&fit=crop&w=1600&q=80";
+
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className={`attendee-event-detail min-h-screen ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#121726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f6efff] via-white to-[#f9f5ff] text-slate-900"}`}>
       <Navbar />
 
-      <div className="pt-24 pb-20 px-6">
-        <div className="max-w-4xl mx-auto">
+      <div className="pt-24 pb-20 px-6 sm:px-8 lg:px-16">
+        <div className="max-w-6xl mx-auto">
+
+          {/* Hero image full-bleed within page padding */}
+          <div className="-mx-6 sm:-mx-8 lg:-mx-16 mb-10">
+            <div className="relative overflow-hidden rounded-none sm:rounded-3xl border border-slate-200 shadow-2xl shadow-slate-200/60">
+              <div className="h-72 sm:h-80 md:h-96 w-full">
+                <img
+                  src={imageSrc}
+                  alt={event.title}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/25 to-black/60" />
+              </div>
+              <div className="absolute inset-0 flex items-end p-6 sm:p-8">
+                <div className="space-y-3">
+                  {displayCategory && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-purple-600/80 text-white text-xs font-semibold border border-purple-400/60 shadow-lg shadow-purple-900/40">
+                      {displayCategory}
+                    </span>
+                  )}
+                  <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg max-w-4xl">
+                    {event.title}
+                  </h1>
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-200 drop-shadow">
+                    {formattedDate && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                        <CalendarDays size={15} /> {formattedDate}
+                      </span>
+                    )}
+                    {(formattedTime || formattedEnd) && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                        <Clock size={15} /> {formattedTime}{formattedEnd ? ` – ${formattedEnd}` : ""}
+                      </span>
+                    )}
+                    {event.venue && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 border border-white/10">
+                        <MapPin size={15} /> {formatVenue(event.venue)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Back button */}
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8 group"
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-8 group"
           >
             <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
             Back
@@ -204,10 +369,10 @@ export default function EventDetail() {
               {event.status && (
                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border ${
                   event.status === "published"
-                    ? "bg-green-500/10 text-green-400 border-green-500/20"
-                    : "bg-gray-800 text-gray-400 border-gray-700"
+                    ? (isDark ? "bg-black text-white border-white/20" : "bg-green-500/10 text-green-400 border-green-500/20")
+                    : (isDark ? "bg-black text-white border-white/20" : "bg-gray-800 text-gray-400 border-gray-700")
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${event.status === "published" ? "bg-green-400" : "bg-gray-500"}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${event.status === "published" ? (isDark ? "bg-white" : "bg-green-400") : (isDark ? "bg-white" : "bg-gray-500")}`} />
                   {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                 </span>
               )}
@@ -219,49 +384,55 @@ export default function EventDetail() {
 
               {/* Meta grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex items-start gap-3 bg-gray-900/60 rounded-xl p-3.5 border border-gray-800">
-                  <CalendarDays size={18} className="text-purple-400 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+                  <CalendarDays size={18} className="text-purple-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-500 mb-0.5 font-medium">Date</p>
-                    <p className="text-white text-sm font-medium">{formattedDate}</p>
+                    <p className="text-xs text-slate-500 mb-0.5 font-medium">Date</p>
+                    <p className="text-slate-900 text-sm font-medium">{formattedDate}</p>
                   </div>
                 </div>
                 {(formattedTime || formattedEnd) && (
-                  <div className="flex items-start gap-3 bg-gray-900/60 rounded-xl p-3.5 border border-gray-800">
-                    <Clock size={18} className="text-purple-400 mt-0.5 shrink-0" />
+                  <div className="flex items-start gap-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+                    <Clock size={18} className="text-purple-500 mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-500 mb-0.5 font-medium">Time</p>
-                      <p className="text-white text-sm font-medium">
+                      <p className="text-xs text-slate-500 mb-0.5 font-medium">Time</p>
+                      <p className="text-slate-900 text-sm font-medium">
                         {formattedTime}{formattedEnd ? ` – ${formattedEnd}` : ""}
                       </p>
                     </div>
                   </div>
                 )}
                 {event.venue && (
-                  <div className="flex items-start gap-3 bg-gray-900/60 rounded-xl p-3.5 border border-gray-800">
-                    <MapPin size={18} className="text-purple-400 mt-0.5 shrink-0" />
+                  <div className="flex items-start gap-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+                    <MapPin size={18} className="text-purple-500 mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-500 mb-0.5 font-medium">Venue</p>
-                      <p className="text-white text-sm font-medium">{formatVenue(event.venue)}</p>
+                      <p className="text-xs text-slate-500 mb-0.5 font-medium">Venue</p>
+                      <p className="text-slate-900 text-sm font-medium">{formatVenue(event.venue)}</p>
                     </div>
                   </div>
                 )}
-                {event.category && (
-                  <div className="flex items-start gap-3 bg-gray-900/60 rounded-xl p-3.5 border border-gray-800">
-                    <Tag size={18} className="text-purple-400 mt-0.5 shrink-0" />
+                {displayCategory && (
+                  <div className="flex items-start gap-3 bg-slate-50 rounded-xl p-3.5 border border-slate-200">
+                    <Tag size={18} className="text-purple-500 mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-500 mb-0.5 font-medium">Category</p>
-                      <p className="text-white text-sm font-medium">{event.category}</p>
+                      <p className="text-xs text-slate-500 mb-0.5 font-medium">Category</p>
+                      <p className="text-slate-900 text-sm font-medium">{displayCategory}</p>
                     </div>
                   </div>
                 )}
               </div>
 
+              {event.venue && (
+                <div className="mt-4">
+                  <GoogleMapEmbed venue={event.venue} isDark={isDark} height={220} />
+                </div>
+              )}
+
               {/* Description */}
               {event.description && (
                 <div>
-                  <h2 className="text-base font-semibold text-gray-200 mb-2">About this event</h2>
-                  <p className="text-gray-400 text-sm leading-relaxed whitespace-pre-line">
+                  <h2 className="text-base font-semibold text-slate-900 mb-2">About this event</h2>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
                     {event.description}
                   </p>
                 </div>
@@ -270,79 +441,141 @@ export default function EventDetail() {
 
             {/* ── RIGHT: Ticket booking panel ──────────────────── */}
             <div className="lg:col-span-2">
-              <div className="bg-gray-900/80 rounded-2xl border border-gray-800 overflow-hidden sticky top-24">
+              <div className={`booking-panel rounded-3xl overflow-hidden sticky top-20 shadow-[0_30px_80px_-40px_rgba(126,34,206,0.35)] ${isDark ? "bg-[#151225] border border-white/15" : "bg-white border border-purple-200/80"}`}>
                 {/* Panel header */}
-                <div className="px-5 py-4 border-b border-gray-800 flex items-center gap-2">
-                  <Ticket size={17} className="text-purple-400" />
-                  <h2 className="text-white font-semibold text-base">Book Tickets</h2>
+                <div className={`px-6 py-5 border-b flex items-center gap-2 ${isDark ? "border-white/15 bg-black" : "border-purple-100 bg-gradient-to-r from-purple-50 to-indigo-50"}`}>
+                  <div className={`w-10 h-10 rounded-2xl shadow-sm flex items-center justify-center ${isDark ? "bg-black border border-white/20" : "bg-white border border-purple-100"}`}>
+                    <Ticket size={18} className={isDark ? "text-white" : "text-purple-600"} />
+                  </div>
+                  <h2 className={`font-semibold text-lg ${isDark ? "text-white" : "text-slate-900"}`}>Book Tickets</h2>
                 </div>
 
-                <div className="p-5 space-y-4">
+                <div className="p-6 space-y-5">
+                  {countdown && (
+                    <div className={`rounded-2xl border p-4 ${countdown.ended ? (isDark ? "border-emerald-400/30 bg-emerald-500/10" : "border-emerald-200 bg-emerald-50") : (isDark ? "border-purple-400/30 bg-purple-500/10" : "border-purple-200 bg-purple-50")}`}>
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <p className={`text-xs uppercase tracking-[0.14em] font-semibold ${isDark ? "text-white/80" : "text-slate-600"}`}>
+                          Event countdown
+                        </p>
+                        <Clock size={14} className={isDark ? "text-white/80" : "text-purple-700"} />
+                      </div>
+
+                      {countdown.ended ? (
+                        <p className={`text-sm font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                          Event has started
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.days).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Days</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.hours).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Hours</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.minutes).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Mins</div>
+                          </div>
+                          <div className={`rounded-xl py-2 ${isDark ? "bg-black/35" : "bg-white"}`}>
+                            <div className={`text-lg font-bold leading-tight ${isDark ? "text-white" : "text-slate-900"}`}>{String(countdown.seconds).padStart(2, "0")}</div>
+                            <div className={`text-[10px] uppercase tracking-wide ${isDark ? "text-white/65" : "text-slate-500"}`}>Secs</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {loadingTickets && (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 size={22} className="animate-spin text-purple-400" />
+                      <Loader2 size={22} className="animate-spin text-purple-500" />
                     </div>
                   )}
 
-                  {!loadingTickets && ticketTypes.length === 0 && (
-                    <div className="text-center py-8">
-                      <Users size={32} className="text-gray-700 mx-auto mb-3" />
-                      <p className="text-gray-500 text-sm">No tickets available for this event.</p>
-                    </div>
-                  )}
+                  {isReservedSeating ? (
+                    <>
+                      {loadingSeating ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 size={22} className="animate-spin text-purple-500" />
+                        </div>
+                      ) : (
+                        <SeatPicker
+                          layout={layout}
+                          seats={seatList}
+                          onConfirm={handleReserveAndBook}
+                          confirming={reserving || purchasing}
+                          isDark={isDark}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {!loadingTickets && ticketTypes.length === 0 && (
+                        <div className={`text-center py-10 rounded-2xl ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-slate-200"}`}>
+                          <Users size={32} className={`mx-auto mb-3 ${isDark ? "text-white" : "text-slate-400"}`} />
+                          <p className={`text-sm ${isDark ? "text-white" : "text-slate-500"}`}>No tickets available for this event.</p>
+                        </div>
+                      )}
 
-                  {!loadingTickets && ticketTypes.map((tt) => {
-                    const remaining = tt.remaining !== undefined
-                      ? tt.remaining
-                      : Math.max(0, (tt.quantityTotal || 0) - (tt.quantitySold || 0));
-                    const maxQty = Math.min(tt.maxPerOrder || 10, remaining);
+                      {!loadingTickets && ticketTypes.map((tt) => {
+                        const remaining = tt.remaining !== undefined
+                          ? tt.remaining
+                          : Math.max(0, (tt.quantityTotal || 0) - (tt.quantitySold || 0));
+                        const maxQty = Math.min(tt.maxPerOrder || 10, remaining);
+                        const tierLabel = TIER_LABELS[tt.tier] || "Regular";
 
-                    return (
-                      <div
-                        key={tt._id}
-                        className="bg-black/40 rounded-xl border border-gray-800 p-4 space-y-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-semibold text-sm truncate">{tt.name}</p>
-                            {tt.description && (
-                              <p className="text-gray-500 text-xs mt-0.5 line-clamp-2">{tt.description}</p>
+                        return (
+                          <div
+                            key={tt._id}
+                            className={`rounded-xl p-5 space-y-3 shadow-[0_16px_40px_-28px_rgba(126,34,206,0.35)] ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-purple-100"}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`px-2.5 py-1 rounded-full text-[11px] uppercase tracking-wide font-semibold ${isDark ? "bg-black border border-white/20 text-white" : "bg-purple-100 text-purple-800 border border-purple-200"}`}>{tierLabel}</span>
+                                  <p className={`font-semibold text-base truncate ${isDark ? "text-white" : "text-slate-900"}`}>{tt.name}</p>
+                                </div>
+                                {tt.description && (
+                                  <p className={`text-xs mt-0.5 line-clamp-2 ${isDark ? "text-white" : "text-slate-500"}`}>{tt.description}</p>
+                                )}
+                              </div>
+                              <span className={`font-bold text-base shrink-0 ${isDark ? "text-white" : "text-purple-700"}`}>
+                                {tt.price === 0 ? "Free" : `$${tt.price}`}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-semibold ${isDark ? "text-white" : (remaining === 0 ? "text-red-500" : "text-slate-500")}`}>
+                                {remaining === 0 ? "Sold out" : `${remaining} left`}
+                              </span>
+                              <Stepper
+                                value={quantities[tt._id] || 0}
+                                min={0}
+                                max={maxQty}
+                                onChange={(v) => setQty(tt._id, v)}
+                              />
+                            </div>
+
+                            {remaining === 0 && (
+                              <p className={`text-xs text-center ${isDark ? "text-white" : "text-red-500/80"}`}>This ticket type is sold out.</p>
                             )}
                           </div>
-                          <span className="text-purple-400 font-bold text-sm shrink-0">
-                            {tt.price === 0 ? "Free" : `$${tt.price}`}
-                          </span>
-                        </div>
+                        );
+                      })}
+                    </>
+                  )}
 
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs ${remaining === 0 ? "text-red-400" : "text-gray-500"}`}>
-                            {remaining === 0 ? "Sold out" : `${remaining} left`}
-                          </span>
-                          <Stepper
-                            value={quantities[tt._id] || 0}
-                            min={0}
-                            max={maxQty}
-                            onChange={(v) => setQty(tt._id, v)}
-                          />
-                        </div>
-
-                        {remaining === 0 && (
-                          <p className="text-xs text-red-400/70 text-center">This ticket type is sold out.</p>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Total + CTA */}
-                  {ticketTypes.length > 0 && (
+                  {/* Total + CTA (general admission only) */}
+                  {!isReservedSeating && ticketTypes.length > 0 && (
                     <>
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-800">
-                        <span className="text-gray-400 text-sm">
+                      <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-white/20" : "border-purple-100"}`}>
+                        <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-600"}`}>
                           {totalTickets > 0
                             ? `${totalTickets} ticket${totalTickets !== 1 ? "s" : ""} selected`
                             : "No tickets selected"}
                         </span>
-                        <span className="text-white font-bold text-lg">
+                        <span className={`font-bold text-xl ${isDark ? "text-white" : "text-slate-900"}`}>
                           {totalPrice === 0 && totalTickets > 0 ? "Free" : totalPrice > 0 ? `$${totalPrice.toFixed(2)}` : "-"}
                         </span>
                       </div>
@@ -350,7 +583,11 @@ export default function EventDetail() {
                       <button
                         onClick={handleBook}
                         disabled={totalTickets === 0 || purchasing}
-                        className="w-full py-3 rounded-xl font-semibold text-sm text-white bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 shadow-lg shadow-purple-900/30"
+                        className={`w-full py-3.5 rounded-2xl font-semibold text-base disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all duration-200 ${
+                          isDark
+                            ? "text-white bg-black border border-white/20 hover:bg-[#161616]"
+                            : "text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-[0_16px_40px_-18px_rgba(126,34,206,0.55)]"
+                        }`}
                       >
                         {purchasing ? (
                           <>

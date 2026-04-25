@@ -20,6 +20,16 @@ export const getCurrentUser = async () => {
   return res.data;
 };
 
+export const updateProfile = async (payload) => {
+  const res = await api.put("/auth/me", payload);
+  return res.data;
+};
+
+export const changePassword = async (payload) => {
+  const res = await api.put("/auth/me/password", payload);
+  return res.data;
+};
+
 export const refreshToken = async () => {
   const res = await api.post("/auth/refresh");
   return res.data;

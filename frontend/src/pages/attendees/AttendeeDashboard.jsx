@@ -12,7 +12,32 @@ import {
   ArrowRight,
   Sparkles,
   LayoutGrid,
+  Music2,
+  Drama,
+  Users,
+  Sparkles as SparklesIcon,
 } from "lucide-react";
+
+const HERO_IMAGES = [
+  "https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=1800&q=80", // festival crowd
+  "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1800&q=80", // DJ booth lights
+  "https://images.unsplash.com/photo-1507878866276-a947ef722fee?auto=format&fit=crop&w=1800&q=80" // live stage
+];
+
+const CATEGORY_LABELS = {
+  concert: "Concert",
+  theatre: "Theatre",
+  family: "Family",
+  other: "Other"
+};
+
+const normalizeCategory = (value = "") => value.toString().trim().toLowerCase();
+
+const getPrimaryCategory = (event) => {
+  if (!event) return "";
+  if (Array.isArray(event.categories) && event.categories.length) return event.categories[0];
+  return event.category || "";
+};
 
 function formatVenue(venue) {
   if (!venue) return "";
@@ -33,58 +58,79 @@ function EventCard({ event }) {
     ? dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
     : "";
 
+  const rawCategory = getPrimaryCategory(event);
+  const normalizedCategory = normalizeCategory(rawCategory);
+  const displayCategory = CATEGORY_LABELS[normalizedCategory] || rawCategory;
+  const imageSrc = event.imageUrl || "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80";
+
   return (
     <Link
       to={`/event/${event._id}`}
-      className="group relative bg-gray-900/60 hover:bg-gray-900 rounded-2xl border border-gray-800 hover:border-purple-500/60 transition-all duration-300 overflow-hidden flex flex-col shadow-lg hover:shadow-purple-900/30 hover:-translate-y-0.5"
+      className="group relative rounded-2xl border border-purple-100 hover:border-purple-300 transition-all duration-300 overflow-hidden flex flex-col bg-white shadow-lg hover:-translate-y-0.5 hover:shadow-purple-200"
     >
-      {/* Top accent bar */}
-      <div className="h-1 w-full bg-gradient-to-r from-purple-600 via-purple-400 to-indigo-500 opacity-50 group-hover:opacity-100 transition-opacity duration-300" />
-
-      <div className="p-5 flex flex-col flex-1 gap-3">
-        {/* Category badge */}
-        {event.category && (
-          <span className="self-start text-xs font-medium px-2.5 py-1 rounded-full bg-purple-600/15 text-purple-400 border border-purple-600/20">
-            {event.category}
-          </span>
+      <div className="relative h-56 w-full overflow-hidden">
+        <img
+          src={imageSrc}
+          alt={event.title}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/15 to-black/55" />
+        <div className="absolute top-4 left-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-slate-800 text-xs font-semibold shadow-md border border-white/60">
+          <CalendarDays size={14} className="text-purple-600" />
+          <span>{date}</span>
+        </div>
+        {time && (
+          <div className="absolute top-4 right-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-slate-800 text-xs font-semibold shadow-md border border-white/60">
+            <Clock size={14} className="text-purple-600" />
+            <span>{time}</span>
+          </div>
         )}
+      </div>
 
-        {/* Title */}
-        <h3 className="text-white font-semibold text-base leading-snug line-clamp-2 group-hover:text-purple-300 transition-colors duration-200">
-          {event.title}
-        </h3>
-
-        {/* Description */}
-        {event.description && (
-          <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed flex-1">
-            {event.description}
-          </p>
-        )}
-
-        {/* Meta */}
-        <div className="flex flex-wrap gap-3 text-xs text-gray-500 pt-1">
-          <span className="flex items-center gap-1.5">
-            <CalendarDays size={12} className="text-purple-500" />
-            {date}
-          </span>
-          {time && (
-            <span className="flex items-center gap-1.5">
-              <Clock size={12} className="text-purple-500" />
-              {time}
+      <div className="p-6 flex flex-col flex-1 gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {displayCategory && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+              {displayCategory}
             </span>
           )}
-          {event.venue && (
-            <span className="flex items-center gap-1.5">
-              <MapPin size={12} className="text-purple-500" />
-              <span className="truncate max-w-[120px]">{formatVenue(event.venue)}</span>
+          {event.status && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
             </span>
           )}
         </div>
 
-        {/* Footer row */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-800 mt-auto">
-          <span className="text-xs font-semibold text-purple-400">View Details</span>
-          <ArrowRight size={15} className="text-gray-600 group-hover:text-purple-400 group-hover:translate-x-1 transition-all duration-200" />
+        <h3 className="text-slate-900 font-semibold text-xl leading-snug line-clamp-2 group-hover:text-purple-700 transition-colors duration-200">
+          {event.title}
+        </h3>
+
+        {event.description && (
+          <p className="text-slate-600 text-sm line-clamp-3 leading-relaxed flex-1">
+            {event.description}
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
+          <span className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <CalendarDays size={14} className="text-purple-500" />
+            <span>{date}</span>
+          </span>
+          {event.venue && (
+            <span className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+              <MapPin size={14} className="text-purple-500" />
+              <span className="truncate" title={formatVenue(event.venue)}>{formatVenue(event.venue)}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-auto">
+          <div className="flex items-center gap-2 text-sm text-purple-600 font-semibold">
+            <span className="group-hover:underline">View details</span>
+          </div>
+          <ArrowRight size={16} className="text-slate-400 group-hover:text-purple-500 group-hover:translate-x-1 transition-all duration-200" />
         </div>
       </div>
     </Link>
@@ -94,11 +140,11 @@ function EventCard({ event }) {
 // ── Skeleton loader ────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="bg-gray-900/40 rounded-2xl border border-gray-800 p-5 animate-pulse">
-      <div className="h-2 bg-gray-800 rounded mb-4" />
-      <div className="h-5 bg-gray-800 rounded mb-2" />
-      <div className="h-4 bg-gray-800 rounded w-3/4 mb-4" />
-      <div className="h-3 bg-gray-800 rounded w-1/2" />
+    <div className="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm animate-pulse">
+      <div className="h-2 bg-purple-100 rounded mb-4" />
+      <div className="h-5 bg-purple-100 rounded mb-2" />
+      <div className="h-4 bg-purple-100 rounded w-3/4 mb-4" />
+      <div className="h-3 bg-purple-100 rounded w-1/2" />
     </div>
   );
 }
@@ -108,7 +154,9 @@ export default function AttendeeDashboard() {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [heroIndex, setHeroIndex] = useState(0);
 
   useEffect(() => {
     getPublishedEvents()
@@ -117,68 +165,157 @@ export default function AttendeeDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = events.filter(
-    (e) =>
-      !searchQuery ||
-      e.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      formatVenue(e.venue).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      e.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    if (HERO_IMAGES.length < 2) return undefined;
+    const id = setInterval(() => {
+      setHeroIndex((idx) => (idx + 1) % HERO_IMAGES.length);
+    }, 6500);
+    return () => clearInterval(id);
+  }, []);
+
+  const filtered = events.filter((event) => {
+    const keywordLower = keyword.toLowerCase();
+    const title = event.title?.toLowerCase() || "";
+    const description = event.description?.toLowerCase() || "";
+    const category = normalizeCategory(getPrimaryCategory(event));
+    const venue = formatVenue(event.venue).toLowerCase();
+
+    const matchesKeyword =
+      !keyword ||
+      title.includes(keywordLower) ||
+      description.includes(keywordLower) ||
+      category.includes(keywordLower) ||
+      venue.includes(keywordLower);
+
+    const matchesCategory = !categoryFilter || category === categoryFilter;
+
+    return matchesKeyword && matchesCategory;
+  });
+
+  const hasActiveFilters = Boolean(keyword || categoryFilter);
+  const eventCount = events.length;
+  const filteredCount = filtered.length;
+
+  const quickCategories = [
+    { key: "concert", label: "Concert", icon: Music2 },
+    { key: "theatre", label: "Theatre", icon: Drama },
+    { key: "family", label: "Family", icon: Users },
+    { key: "other", label: "Other", icon: SparklesIcon },
+  ];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#f8f5ff] via-white to-[#f0e8ff] text-slate-900">
       <Navbar />
 
       {/* Hero welcome banner */}
-      <div className="pt-24 pb-10 px-6 bg-gradient-to-b from-purple-950/30 via-black to-black">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={16} className="text-purple-400" />
-                <span className="text-purple-400 text-sm font-medium">Welcome back</span>
+      <div className="relative pt-24 pb-12 px-4 sm:px-8 lg:px-12 xl:px-16 overflow-hidden" style={{ backgroundColor: "#f5f1ff" }}>
+        <img
+          src={HERO_IMAGES[heroIndex]}
+          alt="Live music crowd"
+          className="absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700"
+          style={{ filter: "saturate(1.08)", opacity: 0.9 }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/82 via-[#f1e9ff]/68 to-[#e5dbff]/75" />
+        <div className="absolute -left-32 -top-24 w-96 h-96 rounded-full bg-purple-300/30 blur-3xl" />
+        <div className="absolute -right-24 -top-10 w-80 h-80 rounded-full bg-indigo-300/25 blur-3xl" />
+        <div className="relative w-full mx-auto max-w-[1200px]">
+          <div className="grid grid-cols-1">
+            <div className="bg-white/80 border border-purple-100 backdrop-blur-xl rounded-2xl p-7 shadow-2xl shadow-purple-200">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={16} className="text-purple-600 drop-shadow" />
+                <span className="text-purple-700 text-sm font-medium">Discover live music near you</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 drop-shadow-sm">
                 {user?.name ? (
                   <>
-                    Hi, <span className="text-purple-400">{user.name.split(" ")[0]}</span>!
+                    Hey {user.name.split(" ")[0]}, let’s find your next show
                   </>
                 ) : (
-                  "Your Dashboard"
+                  "Find your next show"
                 )}
               </h1>
-              <p className="text-gray-400 mt-1 text-sm">
+              <p className="text-slate-700 mt-2 text-sm drop-shadow-sm">
                 {loading
                   ? "Loading events…"
-                  : `${events.length} event${events.length !== 1 ? "s" : ""} available to book`}
+                  : `${eventCount} events ready for you`}
               </p>
-            </div>
-
-            {/* Stats pill */}
-            {!loading && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 border border-gray-800 w-fit">
-                <LayoutGrid size={15} className="text-purple-400" />
-                <span className="text-gray-300 text-sm font-medium">{events.length} Events</span>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  to="/events"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold shadow-lg shadow-purple-300/50 transition-all"
+                >
+                  <LayoutGrid size={15} /> Browse all events
+                </Link>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="pb-24 px-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="pb-24 px-4 sm:px-8 lg:px-12 xl:px-16">
+        <div className="max-w-[1400px] w-full mx-auto">
+          <div className="relative overflow-hidden bg-white/95 border border-[#6a317f]/25 rounded-2xl p-6 md:p-7 mb-8 shadow-[0_25px_90px_-40px_rgba(106,49,127,0.65)]">
+            <div className="absolute -left-24 -top-28 w-72 h-72 bg-[#6a317f]/10 blur-3xl" />
+            <div className="absolute -right-16 -bottom-14 w-64 h-64 bg-[#6a317f]/8 blur-3xl" />
 
-          {/* Search bar */}
-          <div className="relative mb-8 max-w-lg">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search events by name, venue or category…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-900/80 border border-gray-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:bg-gray-900 transition-all duration-200"
-            />
+            <div className="relative flex flex-wrap items-center gap-3 mb-5">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#6a317f]/12 border border-[#6a317f]/30 text-sm font-semibold text-[#6a317f] shadow-sm">
+                <Search size={16} className="text-[#6a317f]" />
+                Search & Filter
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-[#6a317f]/20 text-[#6a317f] font-semibold shadow-sm">
+                  Total: {eventCount}
+                </span>
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-[#6a317f]/20 text-[#6a317f] font-semibold shadow-sm">
+                  Showing: {filteredCount}
+                </span>
+              </div>
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setKeyword(""); setCategoryFilter(""); }}
+                  className="ml-auto text-xs text-[#6a317f] hover:text-[#58276a] font-semibold px-3 py-1.5 rounded-full border border-[#6a317f]/30 bg-white shadow-sm"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+
+            <div className="relative flex flex-col gap-3">
+              <div className="relative w-full">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6a317f]" />
+                <input
+                  type="text"
+                  placeholder="Search artist, city, vibe…"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  className="w-full bg-white border border-[#6a317f]/30 rounded-2xl pl-12 pr-4 py-4 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6a317f] focus:ring-2 focus:ring-[#6a317f]/20 shadow-sm"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 items-center">
+                {quickCategories.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setCategoryFilter(key)}
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-sm font-semibold transition-all shadow-sm ${
+                      categoryFilter === key
+                        ? "bg-[#6a317f] text-white border-[#6a317f] shadow-purple-200"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-[#6a317f]/60 hover:text-[#6a317f]"
+                    }`}
+                  >
+                    <Icon size={16} /> {label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCategoryFilter("")}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border text-sm font-semibold text-slate-700 bg-white border-slate-200 hover:border-[#6a317f]/60 hover:text-[#6a317f]"
+                >
+                  Clear category
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Events grid */}
@@ -190,23 +327,26 @@ export default function AttendeeDashboard() {
 
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4">
-                <CalendarDays size={28} className="text-gray-700" />
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4 shadow-sm">
+                <CalendarDays size={28} className="text-purple-500" />
               </div>
-              <h3 className="text-white font-semibold text-lg mb-1">
-                {searchQuery ? "No events found" : "No events available"}
+              <h3 className="text-slate-900 font-semibold text-lg mb-1">
+                {hasActiveFilters ? "No matching events" : "No events available"}
               </h3>
-              <p className="text-gray-500 text-sm max-w-xs">
-                {searchQuery
-                  ? `No events match "${searchQuery}". Try a different search.`
+              <p className="text-slate-500 text-sm max-w-xs">
+                {hasActiveFilters
+                  ? "Try a different search or category."
                   : "Check back soon — new events are added regularly."}
               </p>
-              {searchQuery && (
+              {hasActiveFilters && (
                 <button
-                  onClick={() => setSearchQuery("")}
-                  className="mt-4 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                  onClick={() => {
+                    setKeyword("");
+                    setCategoryFilter("");
+                  }}
+                  className="mt-4 text-sm text-purple-600 hover:text-purple-700 transition-colors"
                 >
-                  Clear search
+                  Clear all filters
                 </button>
               )}
             </div>

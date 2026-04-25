@@ -1,7 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setCredentials, logout as logoutAction, selectCurrentUser, selectIsAuthenticated } from './authSlice';
-import { loginUser, registerUser, logoutUser, getCurrentUser } from './authApi';
+import { loginUser, registerUser, logoutUser, getCurrentUser, updateProfile as updateProfileApi, changePassword as changePasswordApi } from './authApi';
 import { setAccessToken } from '../../services/axios';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -79,6 +79,18 @@ export const useAuth = () => {
     }
   };
 
+  const updateProfile = async (payload) => {
+    const data = await updateProfileApi(payload);
+    dispatch(setCredentials({ user: data.user, accessToken: localStorage.getItem('accessToken') }));
+    toast.success('Profile updated');
+    return data.user;
+  };
+
+  const changePassword = async (payload) => {
+    await changePasswordApi(payload);
+    toast.success('Password updated');
+  };
+
   return {
     user,
     isAuthenticated,
@@ -87,6 +99,8 @@ export const useAuth = () => {
     register,
     logout,
     fetchCurrentUser,
+    updateProfile,
+    changePassword,
   };
 };
 
