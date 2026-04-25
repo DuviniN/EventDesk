@@ -323,19 +323,25 @@ export default function ManageEvents() {
                             </button>
                           ) : null}
                         </div>
+                        {event.status === 'published' ? (
+                          <div className="text-[11px] text-purple-200/80">
+                            Locked after publish
+                          </div>
+                        ) : null}
                         <div className="flex flex-col sm:flex-row gap-2">
                           <input
                             type="text"
                             value={codeEdits[event._id] ?? event.checkInCode ?? ''}
                             onChange={(e) => setCodeEdits((prev) => ({ ...prev, [event._id]: e.target.value }))}
                             placeholder="Set a code"
+                            disabled={event.status === 'published'}
                             className="flex-1 rounded-md border border-purple-800/50 bg-purple-950/40 px-3 py-2 text-white placeholder:text-purple-200/60 focus:border-purple-400 focus:outline-none"
                           />
                           <Button
                             type="button"
                             variant="primary"
                             size="sm"
-                            disabled={savingCodeId === event._id}
+                            disabled={savingCodeId === event._id || event.status === 'published'}
                             onClick={() => handleSaveCode(event._id)}
                             className="whitespace-nowrap"
                           >

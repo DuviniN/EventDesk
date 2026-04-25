@@ -17,6 +17,14 @@ const ticketSchema = new mongoose.Schema(
     qrPayload: { type: String },
     qrImage: { type: String },
     qrRevokedAt: { type: Date },
+    // Reserved seating (optional)
+    seatId: { type: mongoose.Schema.Types.ObjectId, ref: 'Seat' },
+    seatLabel: {
+      section: String,
+      row: String,
+      number: String,
+      category: String
+    },
     attendee: attendeeSchema,
     status: { type: String, enum: ['valid', 'checked_in', 'cancelled', 'refunded'], default: 'valid' },
     checkedInAt: { type: Date },

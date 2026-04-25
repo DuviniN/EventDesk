@@ -2,6 +2,7 @@ const router = require("express").Router();
 const eventController = require("../controllers/event.controller");
 const auth = require("../middleware/auth.middleware");
 const ticketController = require("../controllers/ticket.controller");
+const seatingController = require("../controllers/seating.controller");
 
 // Protected organizer routes should be declared before dynamic :id to avoid shadowing
 router.post("/", auth(["organizer"]), eventController.createEvent);
@@ -32,6 +33,14 @@ router.get("/tickets/verify", ticketController.verifyTicketPublic);
 
 // Ticket listings for organizers (attendee list)
 router.get("/:eventId/tickets", auth(["organizer"]), ticketController.getTicketsForEvent);
+
+// Seating / indoor reserved seats
+router.get("/:eventId/seating/layout", seatingController.getLayout);
+router.put("/:eventId/seating/layout", auth(["organizer"]), seatingController.upsertLayout);
+router.get("/:eventId/seating/seats", seatingController.listSeats);
+router.put("/:eventId/seating/seats", auth(["organizer"]), seatingController.replaceSeats);
+router.post("/:eventId/seating/hold", auth(), seatingController.createHold);
+router.delete("/:eventId/seating/hold/:holdId", auth(), seatingController.cancelHold);
 
 // Purchase tickets (authenticated users)
 router.post("/:eventId/tickets/purchase", auth(), ticketController.purchaseTickets);

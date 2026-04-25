@@ -29,7 +29,7 @@ const formatUptimeLabel = (seconds) => {
  */
 exports.createEvent = async (req, res) => {
   try {
-    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity, status } = req.body;
+    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity } = req.body;
     const organizerId = req.user.id;
 
     if (!title) {
@@ -56,7 +56,8 @@ exports.createEvent = async (req, res) => {
       return res.status(400).json({ message: 'Event capacity must be greater than 0' });
     }
 
-    const initialStatus = ['draft', 'published'].includes(status) ? status : 'published';
+    // Always create as draft so the organizer can review details before publishing.
+    const initialStatus = 'draft';
 
     const checkInCode = generateCheckInCode();
     const checkInCodeHash = await bcrypt.hash(checkInCode, 10);
@@ -77,17 +78,8 @@ exports.createEvent = async (req, res) => {
       checkInCodeUpdatedAt: new Date()
     });
 
-    // If created directly as published, announce to opted-in attendees (best effort)
-    if (event.status === 'published') {
-      queueNewEventAnnouncements(event).catch((err) => {
-        console.error('queueNewEventAnnouncements on create error:', err);
-      });
-    }
-
     res.status(201).json({
-      message: initialStatus === 'published'
-        ? 'Event created and published successfully'
-        : 'Event created successfully',
+      message: 'Event created as draft. Review details and publish when ready.',
       event,
       checkInCode
     });
@@ -260,7 +252,7 @@ exports.getEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity, status } = req.body;
+    const { title, description, categories, imageUrl, startAt, endAt, venue, capacity } = req.body;
     const organizerId = req.user.id;
 
     const event = await Event.findById(id);
@@ -278,6 +270,11 @@ exports.updateEvent = async (req, res) => {
       return res.status(400).json({ message: 'Cancelled events cannot be updated' });
     }
 
+    // Prevent updates on published events
+    if (event.status === 'published') {
+      return res.status(400).json({ message: 'Published events cannot be updated' });
+    }
+
     if (title) event.title = String(title).trim();
     if (description) event.description = String(description).trim();
     if (typeof imageUrl === 'string') event.imageUrl = imageUrl.trim();
@@ -286,9 +283,6 @@ exports.updateEvent = async (req, res) => {
     if (endAt) event.endAt = new Date(endAt);
     if (venue) event.venue = venue;
     if (capacity) event.capacity = parseInt(capacity);
-    if (status && ['draft', 'published', 'cancelled'].includes(status)) {
-      event.status = status;
-    }
 
     // Validate dates
     if (event.startAt >= event.endAt) {
@@ -445,6 +439,9 @@ exports.setCheckInCode = async (req, res) => {
     }
     if (event.status === 'cancelled') {
       return res.status(400).json({ message: 'Cancelled events cannot be updated' });
+    }
+    if (event.status === 'published') {
+      return res.status(400).json({ message: 'Published events cannot be updated' });
     }
 
     const plain = String(code).trim();

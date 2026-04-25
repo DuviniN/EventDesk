@@ -3,6 +3,9 @@ const Ticket = require('../models/Ticket');
 const Event = require('../models/Event');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const Seat = require('../models/Seat');
+const SeatHold = require('../models/SeatHold');
+const SeatAssignment = require('../models/SeatAssignment');
 const sendEmail = require("../utils/sendEmail");
 const QRCode = require('qrcode');
 const jwt = require('jsonwebtoken');
@@ -21,7 +24,8 @@ const buildQrPayload = (ticket, event) => {
       tc: ticket.ticketCode,
       eid: ticket.eventId.toString(),
       et: event?.title,
-      email: ticket.attendee?.email
+      email: ticket.attendee?.email,
+      seat: ticket.seatLabel || null
     },
     qrSecret,
     { expiresIn: '365d' }
@@ -40,6 +44,9 @@ const attachQrToTicket = async (ticket, event) => {
     `Event: ${event?.title || 'Event'}`,
     event?.startAt ? `When: ${new Date(event.startAt).toLocaleString()}` : null,
     event?.venue?.city || event?.venue?.name ? `Venue: ${[event.venue?.name, event.venue?.city].filter(Boolean).join(', ')}` : null,
+    ticket?.seatLabel?.section || ticket?.seatLabel?.row || ticket?.seatLabel?.number
+      ? `Seat: ${[ticket.seatLabel?.section, ticket.seatLabel?.row, ticket.seatLabel?.number].filter(Boolean).join('-')}`
+      : null,
     `Code: ${ticket.ticketCode}`,
     `Status: ${ticket.status || 'valid'}`,
     `token:${qrPayload}`,
@@ -173,12 +180,245 @@ exports.deleteTicketType = async (req, res) => {
 };
 
 // Purchase tickets (buyer)
-// payload: { items: [{ ticketTypeId, quantity }], currency }
+// payload:
+// - General admission: { items: [{ ticketTypeId, quantity }], currency }
+// - Reserved seating: { seatHoldId, currency }
 exports.purchaseTickets = async (req, res) => {
   try {
     const buyerId = req.user.id;
     const { eventId } = req.params;
-    const { items, currency } = req.body;
+    const { items, currency, seatHoldId } = req.body;
+
+    // Reserved seating flow (seat hold)
+    if (seatHoldId) {
+      const hold = await SeatHold.findById(seatHoldId).lean();
+      if (!hold) return res.status(400).json({ message: 'Seat hold expired or not found' });
+      if (hold.eventId.toString() !== eventId) return res.status(400).json({ message: 'Seat hold does not belong to this event' });
+      if (hold.buyerId.toString() !== buyerId) return res.status(403).json({ message: 'Not authorized for this hold' });
+      if (new Date(hold.expiresAt).getTime() <= Date.now()) {
+        return res.status(400).json({ message: 'Seat hold expired' });
+      }
+
+      const event = await Event.findById(eventId).lean();
+      if (!event) return res.status(404).json({ message: 'Event not found' });
+      if (event.seatingMode !== 'reserved') {
+        return res.status(400).json({ message: 'This event does not use reserved seating' });
+      }
+
+      const seatIds = (hold.seatIds || []).map(sid => sid.toString());
+      if (!seatIds.length) return res.status(400).json({ message: 'Seat hold has no seats' });
+
+      const now = new Date();
+
+      const conflictAssign = await SeatAssignment.findOne({ eventId, seatId: { $in: seatIds } }).lean();
+      if (conflictAssign) return res.status(409).json({ message: 'One or more seats were just sold. Please refresh and try again.' });
+
+      const conflictHold = await SeatHold.findOne({
+        _id: { $ne: hold._id },
+        eventId,
+        expiresAt: { $gt: now },
+        seatIds: { $in: seatIds }
+      }).lean();
+      if (conflictHold) return res.status(409).json({ message: 'One or more seats are currently held by another user' });
+
+      const seats = await Seat.find({ eventId, _id: { $in: seatIds }, isActive: true }).lean();
+      if (seats.length !== seatIds.length) {
+        return res.status(400).json({ message: 'One or more seats are invalid' });
+      }
+
+      // Group seats by tier/category
+      const byTier = new Map();
+      seats.forEach(s => {
+        const tier = normalizeTier(s.category);
+        if (!byTier.has(tier)) byTier.set(tier, []);
+        byTier.get(tier).push(s);
+      });
+
+      const updates = [];
+      const orderItems = [];
+      const ticketTypeByTier = new Map();
+      let total = 0;
+
+      // Reserve ticket types for each tier
+      for (const [tier, tierSeats] of byTier.entries()) {
+        const qty = tierSeats.length;
+
+        const tt = await TicketType.findOneAndUpdate(
+          {
+            eventId,
+            tier,
+            isActive: true,
+            $expr: { $lte: [{ $add: ['$quantitySold', qty] }, '$quantityTotal'] }
+          },
+          { $inc: { quantitySold: qty } },
+          { new: true, sort: { price: 1 } }
+        );
+
+        if (!tt) {
+          // rollback
+          for (const u of updates) {
+            await TicketType.findByIdAndUpdate(u._id, { $inc: { quantitySold: -u.quantity } });
+          }
+          return res.status(400).json({ message: `Unable to reserve tickets for tier ${tier}: sold out or not available` });
+        }
+
+        updates.push({ _id: tt._id, quantity: qty });
+        ticketTypeByTier.set(tier, tt);
+        orderItems.push({ ticketTypeId: tt._id, quantity: qty, unitPriceMinor: Math.round(tt.price * 100) });
+        total += Math.round(tt.price * 100) * qty;
+      }
+
+      const buyer = await User.findById(buyerId).lean();
+      const order = await Order.create({ buyerId, eventId, items: orderItems, total, currency: currency || 'USD', status: 'pending' });
+
+      const createdTickets = [];
+      const createdAssignments = [];
+
+      try {
+        // Create one ticket per seat
+        for (const seat of seats) {
+          const tier = normalizeTier(seat.category);
+          const tt = ticketTypeByTier.get(tier);
+          if (!tt) throw new Error('Ticket type mapping missing');
+
+          const code = `T-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+          const attendee = buyer ? { name: buyer.name, email: buyer.email } : undefined;
+
+          const t = await Ticket.create({
+            eventId,
+            orderId: order._id,
+            ticketTypeId: tt._id,
+            ticketCode: code,
+            attendee,
+            seatId: seat._id,
+            seatLabel: {
+              section: seat.label?.section || '',
+              row: seat.label?.row || '',
+              number: seat.label?.number || '',
+              category: tier
+            }
+          });
+
+          await attachQrToTicket(t, event);
+
+          const assignment = await SeatAssignment.create({
+            eventId,
+            seatId: seat._id,
+            ticketId: t._id,
+            orderId: order._id,
+            buyerId,
+            ticketTypeId: tt._id
+          });
+
+          createdTickets.push(t);
+          createdAssignments.push(assignment);
+        }
+
+        // Hold is no longer needed after successful ticket issuance
+        await SeatHold.deleteOne({ _id: hold._id });
+      } catch (err) {
+        // Best-effort rollback
+        try {
+          if (createdAssignments.length) {
+            await SeatAssignment.deleteMany({ _id: { $in: createdAssignments.map(a => a._id) } });
+          }
+          if (createdTickets.length) {
+            await Ticket.deleteMany({ _id: { $in: createdTickets.map(t => t._id) } });
+          }
+          await Order.deleteOne({ _id: order._id });
+          for (const u of updates) {
+            await TicketType.findByIdAndUpdate(u._id, { $inc: { quantitySold: -u.quantity } });
+          }
+        } catch (rollbackErr) {
+          console.error('purchaseTickets reserved rollback error:', rollbackErr);
+        }
+
+        // Duplicate key implies a race on seat assignment
+        if (err && err.code === 11000) {
+          return res.status(409).json({ message: 'One or more seats were just sold. Please refresh and try again.' });
+        }
+        console.error('purchaseTickets reserved error:', err);
+        return res.status(500).json({ message: 'Server error' });
+      }
+
+      // Email confirmation (reuses existing structure; include seat label)
+      let emailSent = false;
+      let emailError = null;
+      try {
+        if (buyer && buyer.email) {
+          const seatSummary = createdTickets
+            .map(t => {
+              const lbl = [t.seatLabel?.section, t.seatLabel?.row, t.seatLabel?.number].filter(Boolean).join('-');
+              const tier = t.seatLabel?.category || '';
+              return `- ${lbl || 'Seat'}${tier ? ` (${tier})` : ''}`;
+            })
+            .join('\n');
+
+          const eventTitle = event ? event.title : 'your event';
+          const startAt = event?.startAt ? new Date(event.startAt).toLocaleString() : null;
+
+          const textBody = [
+            `Hi ${buyer.name || 'there'},`,
+            '',
+            `Your reserved seats for ${eventTitle} are confirmed.`,
+            startAt ? `Event start: ${startAt}` : null,
+            '',
+            `Order ID: ${order._id.toString()}`,
+            seatSummary ? 'Seats:\n' + seatSummary : null,
+            'Each ticket has a QR code attached. You can also view them in your profile.'
+          ].filter(Boolean).join('\n');
+
+          const attachments = [];
+          const ticketCardsHtml = createdTickets.map(t => {
+            const lbl = [t.seatLabel?.section, t.seatLabel?.row, t.seatLabel?.number].filter(Boolean).join('-');
+            const tier = t.seatLabel?.category || '';
+            let imgMarkup = '';
+            if (t.qrImage && t.qrImage.startsWith('data:image')) {
+              const base64 = t.qrImage.split(',')[1];
+              const cid = `qr-${t._id}`;
+              attachments.push({
+                filename: `${t.ticketCode}.png`,
+                content: Buffer.from(base64, 'base64'),
+                cid
+              });
+              imgMarkup = `<img src="cid:${cid}" alt="QR for ${t.ticketCode}" style="margin-top:10px;width:180px;height:180px;object-fit:contain;border-radius:10px;" />`;
+            }
+            return `
+              <div style="padding:12px;border-radius:12px;border:1px solid #1f2937;background:#0b0b0f;color:#e5e7eb;">
+                <div style="font-weight:600;font-size:14px;">Reserved Seat</div>
+                <div style="font-size:12px;color:#9ca3af;">Seat: ${lbl || 'N/A'}${tier ? ` • ${tier}` : ''}</div>
+                <div style="font-size:12px;color:#9ca3af;">Code: ${t.ticketCode}</div>
+                ${imgMarkup}
+              </div>
+            `;
+          }).join('');
+
+          const htmlBody = `
+            <div style="font-family:'Inter',Arial,sans-serif;background:#05060a;padding:20px;color:#e5e7eb;">
+              <h2 style="margin:0 0 6px 0;color:#c084fc;">Your seats are confirmed</h2>
+              <p style="margin:0 0 8px 0;color:#cbd5e1;">${eventTitle}${startAt ? ` • ${startAt}` : ''}</p>
+              <p style="margin:0 0 12px 0;color:#94a3b8;">Order ID: ${order._id.toString()}</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">${ticketCardsHtml}</div>
+              <p style="margin-top:12px;color:#94a3b8;">You can also open your EventDesk profile to access these codes at any time.</p>
+            </div>
+          `;
+
+          await sendEmail(buyer.email, `Your seats for ${eventTitle}`, { text: textBody, html: htmlBody, attachments });
+          emailSent = true;
+        }
+      } catch (err) {
+        console.error('purchaseTickets reserved email error:', err);
+        emailError = 'Confirmation email could not be sent';
+      }
+
+      return res.status(201).json({
+        message: emailSent ? 'Order created. Check your email for confirmation.' : 'Order created. Email confirmation pending.',
+        order,
+        tickets: createdTickets,
+        emailSent,
+        emailError
+      });
+    }
 
     if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'No items provided' });
 

@@ -4,8 +4,11 @@ import Navbar from "../../components/common/Navbar";
 import Footer from "../../components/common/Footer";
 import { getEvent } from "../../features/events/eventApi";
 import { getTicketTypes, purchaseTickets } from "../../features/tickets/ticketsApi";
+import { getSeatingLayout, listSeats, createSeatHold } from "../../features/seating/seatingApi";
 import toast from "react-hot-toast";
 import { useTheme } from "../../context/ThemeContext";
+import GoogleMapEmbed from "../../components/ui/GoogleMapEmbed";
+import SeatPicker from "../../components/ui/SeatPicker";
 import {
   ArrowLeft,
   CalendarDays,
@@ -104,7 +107,12 @@ export default function EventDetail() {
   const [quantities, setQuantities] = useState({});
   const [loadingEvent, setLoadingEvent] = useState(true);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingSeating, setLoadingSeating] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [reserving, setReserving] = useState(false);
+  const [layout, setLayout] = useState(null);
+  const [seatList, setSeatList] = useState([]);
+  const [reservedCount, setReservedCount] = useState(0);
   const [booked, setBooked] = useState(false);
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState(null);
@@ -122,6 +130,25 @@ export default function EventDetail() {
         const init = {};
         types.forEach((t) => { init[t._id] = 0; });
         setQuantities(init);
+
+        if (evtData.event?.seatingMode === 'reserved') {
+          setLoadingSeating(true);
+          try {
+            const [layoutRes, seatsRes] = await Promise.all([
+              getSeatingLayout(id),
+              listSeats(id)
+            ]);
+            setLayout(layoutRes.layout);
+            setSeatList(seatsRes.seats || []);
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setLoadingSeating(false);
+          }
+        } else {
+          setLayout(null);
+          setSeatList([]);
+        }
       } catch (err) {
         console.error(err);
         setError("Could not load event.");
@@ -157,6 +184,37 @@ export default function EventDetail() {
 
   const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
 
+  const isReservedSeating = event?.seatingMode === 'reserved';
+
+  const handleReserveAndBook = async (seatIds) => {
+    if (!seatIds || seatIds.length === 0) {
+      toast.error('Please select seats.');
+      return;
+    }
+
+    setReserving(true);
+    try {
+      const holdRes = await createSeatHold(id, { seatIds });
+      setReservedCount(seatIds.length);
+
+      setPurchasing(true);
+      await purchaseTickets(id, { seatHoldId: holdRes?.hold?.id });
+      setBooked(true);
+      toast.success('Booking confirmed!');
+    } catch (err) {
+      toast.error(err?.message || 'Seat reservation failed. Please try again.');
+      try {
+        const seatsRes = await listSeats(id);
+        setSeatList(seatsRes.seats || []);
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setPurchasing(false);
+      setReserving(false);
+    }
+  };
+
   const handleBook = async () => {
     const items = ticketTypes
       .filter((tt) => quantities[tt._id] > 0)
@@ -181,6 +239,7 @@ export default function EventDetail() {
 
   // ── Success screen ───────────────────────────────────────────
   if (booked) {
+    const bookedTicketsCount = isReservedSeating ? (reservedCount || 0) : totalTickets;
     return (
       <div className={`attendee-event-detail min-h-screen ${isDark ? "bg-gradient-to-b from-[#0b0d14] via-[#121726] to-[#0f1220] text-white" : "bg-gradient-to-b from-[#f6efff] via-white to-[#f9f5ff] text-slate-900"}`}>
         <Navbar />
@@ -190,7 +249,7 @@ export default function EventDetail() {
           </div>
           <h1 className="text-3xl font-bold mb-2 text-slate-900">Booking Confirmed!</h1>
           <p className="text-slate-600 mb-2 text-base">
-            You successfully booked <span className="text-slate-900 font-semibold">{totalTickets} ticket{totalTickets !== 1 ? "s" : ""}</span> for
+            You successfully booked <span className="text-slate-900 font-semibold">{bookedTicketsCount} ticket{bookedTicketsCount !== 1 ? "s" : ""}</span> for
           </p>
           <p className="text-purple-600 font-semibold text-lg mb-8">{event?.title}</p>
           <button
@@ -363,6 +422,12 @@ export default function EventDetail() {
                 )}
               </div>
 
+              {event.venue && (
+                <div className="mt-4">
+                  <GoogleMapEmbed venue={event.venue} isDark={isDark} height={220} />
+                </div>
+              )}
+
               {/* Description */}
               {event.description && (
                 <div>
@@ -428,61 +493,81 @@ export default function EventDetail() {
                     </div>
                   )}
 
-                  {!loadingTickets && ticketTypes.length === 0 && (
-                    <div className={`text-center py-10 rounded-2xl ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-slate-200"}`}>
-                      <Users size={32} className={`mx-auto mb-3 ${isDark ? "text-white" : "text-slate-400"}`} />
-                      <p className={`text-sm ${isDark ? "text-white" : "text-slate-500"}`}>No tickets available for this event.</p>
-                    </div>
-                  )}
+                  {isReservedSeating ? (
+                    <>
+                      {loadingSeating ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 size={22} className="animate-spin text-purple-500" />
+                        </div>
+                      ) : (
+                        <SeatPicker
+                          layout={layout}
+                          seats={seatList}
+                          onConfirm={handleReserveAndBook}
+                          confirming={reserving || purchasing}
+                          isDark={isDark}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {!loadingTickets && ticketTypes.length === 0 && (
+                        <div className={`text-center py-10 rounded-2xl ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-slate-200"}`}>
+                          <Users size={32} className={`mx-auto mb-3 ${isDark ? "text-white" : "text-slate-400"}`} />
+                          <p className={`text-sm ${isDark ? "text-white" : "text-slate-500"}`}>No tickets available for this event.</p>
+                        </div>
+                      )}
 
-                  {!loadingTickets && ticketTypes.map((tt) => {
-                    const remaining = tt.remaining !== undefined
-                      ? tt.remaining
-                      : Math.max(0, (tt.quantityTotal || 0) - (tt.quantitySold || 0));
-                    const maxQty = Math.min(tt.maxPerOrder || 10, remaining);
-                    const tierLabel = TIER_LABELS[tt.tier] || "Regular";
+                      {!loadingTickets && ticketTypes.map((tt) => {
+                        const remaining = tt.remaining !== undefined
+                          ? tt.remaining
+                          : Math.max(0, (tt.quantityTotal || 0) - (tt.quantitySold || 0));
+                        const maxQty = Math.min(tt.maxPerOrder || 10, remaining);
+                        const tierLabel = TIER_LABELS[tt.tier] || "Regular";
 
-                    return (
-                      <div
-                        key={tt._id}
-                        className={`rounded-xl p-5 space-y-3 shadow-[0_16px_40px_-28px_rgba(126,34,206,0.35)] ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-purple-100"}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2.5 py-1 rounded-full text-[11px] uppercase tracking-wide font-semibold ${isDark ? "bg-black border border-white/20 text-white" : "bg-purple-100 text-purple-800 border border-purple-200"}`}>{tierLabel}</span>
-                              <p className={`font-semibold text-base truncate ${isDark ? "text-white" : "text-slate-900"}`}>{tt.name}</p>
+                        return (
+                          <div
+                            key={tt._id}
+                            className={`rounded-xl p-5 space-y-3 shadow-[0_16px_40px_-28px_rgba(126,34,206,0.35)] ${isDark ? "bg-black border border-white/15" : "bg-slate-50 border border-purple-100"}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`px-2.5 py-1 rounded-full text-[11px] uppercase tracking-wide font-semibold ${isDark ? "bg-black border border-white/20 text-white" : "bg-purple-100 text-purple-800 border border-purple-200"}`}>{tierLabel}</span>
+                                  <p className={`font-semibold text-base truncate ${isDark ? "text-white" : "text-slate-900"}`}>{tt.name}</p>
+                                </div>
+                                {tt.description && (
+                                  <p className={`text-xs mt-0.5 line-clamp-2 ${isDark ? "text-white" : "text-slate-500"}`}>{tt.description}</p>
+                                )}
+                              </div>
+                              <span className={`font-bold text-base shrink-0 ${isDark ? "text-white" : "text-purple-700"}`}>
+                                {tt.price === 0 ? "Free" : `$${tt.price}`}
+                              </span>
                             </div>
-                            {tt.description && (
-                              <p className={`text-xs mt-0.5 line-clamp-2 ${isDark ? "text-white" : "text-slate-500"}`}>{tt.description}</p>
+
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-semibold ${isDark ? "text-white" : (remaining === 0 ? "text-red-500" : "text-slate-500")}`}>
+                                {remaining === 0 ? "Sold out" : `${remaining} left`}
+                              </span>
+                              <Stepper
+                                value={quantities[tt._id] || 0}
+                                min={0}
+                                max={maxQty}
+                                onChange={(v) => setQty(tt._id, v)}
+                              />
+                            </div>
+
+                            {remaining === 0 && (
+                              <p className={`text-xs text-center ${isDark ? "text-white" : "text-red-500/80"}`}>This ticket type is sold out.</p>
                             )}
                           </div>
-                          <span className={`font-bold text-base shrink-0 ${isDark ? "text-white" : "text-purple-700"}`}>
-                            {tt.price === 0 ? "Free" : `$${tt.price}`}
-                          </span>
-                        </div>
+                        );
+                      })}
+                    </>
+                  )}
 
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-semibold ${isDark ? "text-white" : (remaining === 0 ? "text-red-500" : "text-slate-500")}`}>
-                            {remaining === 0 ? "Sold out" : `${remaining} left`}
-                          </span>
-                          <Stepper
-                            value={quantities[tt._id] || 0}
-                            min={0}
-                            max={maxQty}
-                            onChange={(v) => setQty(tt._id, v)}
-                          />
-                        </div>
-
-                        {remaining === 0 && (
-                          <p className={`text-xs text-center ${isDark ? "text-white" : "text-red-500/80"}`}>This ticket type is sold out.</p>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Total + CTA */}
-                  {ticketTypes.length > 0 && (
+                  {/* Total + CTA (general admission only) */}
+                  {!isReservedSeating && ticketTypes.length > 0 && (
                     <>
                       <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-white/20" : "border-purple-100"}`}>
                         <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-600"}`}>
