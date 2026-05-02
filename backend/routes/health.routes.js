@@ -34,4 +34,25 @@ router.get('/', (req, res) => {
   });
 });
 
+// Dedicated endpoint to inspect MongoDB connection state and optional DB ping
+router.get('/mongo', async (req, res) => {
+  const state = mongoose.connection ? mongoose.connection.readyState : null;
+  const result = {
+    readyState: state,
+    state: mapReadyState(state)
+  };
+
+  if (state === 1 && mongoose.connection.db) {
+    try {
+      const admin = mongoose.connection.db.admin();
+      const ping = await admin.ping();
+      result.ping = ping;
+    } catch (err) {
+      result.pingError = err.message;
+    }
+  }
+
+  res.json(result);
+});
+
 module.exports = router;
