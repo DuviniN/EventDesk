@@ -10,7 +10,7 @@ const sendEmail = require("../utils/sendEmail");
 const QRCode = require('qrcode');
 const jwt = require('jsonwebtoken');
 
-const qrSecret = process.env.QR_SECRET || process.env.ACCESS_TOKEN_SECRET || 'qr-fallback-secret';
+const qrSecret = process.env.QR_SECRET || process.env.JWT_ACCESS_SECRET || 'qr-fallback-secret';
 
 const normalizeTier = (value) => {
   if (!value) return 'regular';
