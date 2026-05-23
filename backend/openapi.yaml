@@ -1,0 +1,818 @@
+openapi: 3.0.3
+info:
+  title: EventDesk Backend API
+  version: v1.0
+  description: EventDesk backend REST API
+servers:
+  - url: /
+tags:
+  - name: Health
+  - name: Auth
+  - name: Events
+  - name: Analytics
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    GenericResponse:
+      type: object
+      additionalProperties: true
+    GenericRequest:
+      type: object
+      additionalProperties: true
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/health/mongo:
+    get:
+      tags: [Health]
+      summary: MongoDB connection diagnostics
+      responses:
+        "200":
+          description: MongoDB connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Registration success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logout success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    put:
+      tags: [Auth]
+      summary: Update profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/me/password:
+    put:
+      tags: [Auth]
+      summary: Change password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Reset code sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events:
+    post:
+      tags: [Events]
+      summary: Create event (organizer)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/organizer/list:
+    get:
+      tags: [Events]
+      summary: List organizer events
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organizer events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/organizer/overview:
+    get:
+      tags: [Events]
+      summary: Organizer overview
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Organizer overview stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/organizer/reminders/run:
+    post:
+      tags: [Events]
+      summary: Send reminder emails for tomorrow events (organizer)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reminders sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/organizer/attendees:
+    get:
+      tags: [Events]
+      summary: Get organizer attendees
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Attendees list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/stats:
+    get:
+      tags: [Events]
+      summary: Public platform stats
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{id}/checkin/code:
+    post:
+      tags: [Events]
+      summary: Set check-in code (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Check-in code updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/me/tickets:
+    get:
+      tags: [Events]
+      summary: Get my tickets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/checkin/verify:
+    post:
+      tags: [Events]
+      summary: Verify check-in code (public)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/checkin/verify:
+    post:
+      tags: [Events]
+      summary: Verify check-in code for event (public)
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/checkin/scan:
+    post:
+      tags: [Events]
+      summary: Scan ticket with code (public)
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/tickets/scan:
+    post:
+      tags: [Events]
+      summary: Scan QR payload to fetch ticket (organizer)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/tickets/verify:
+    get:
+      tags: [Events]
+      summary: Verify ticket via QR URL (public)
+      responses:
+        "200":
+          description: Ticket verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/tickets:
+    get:
+      tags: [Events]
+      summary: Get tickets for event (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/seating/layout:
+    get:
+      tags: [Events]
+      summary: Get seating layout
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Seating layout
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    put:
+      tags: [Events]
+      summary: Update seating layout (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Seating layout updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/seating/seats:
+    get:
+      tags: [Events]
+      summary: Get seating seats
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Seats list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    put:
+      tags: [Events]
+      summary: Replace seating seats (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Seats replaced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/seating/hold:
+    post:
+      tags: [Events]
+      summary: Create a seating hold
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Hold created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/seating/hold/{holdId}:
+    delete:
+      tags: [Events]
+      summary: Cancel a seating hold
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: holdId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Hold canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/tickets/purchase:
+    post:
+      tags: [Events]
+      summary: Purchase tickets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Purchase success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/ticket-types:
+    get:
+      tags: [Events]
+      summary: List ticket types
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket types
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    post:
+      tags: [Events]
+      summary: Create ticket type (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Ticket type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{eventId}/ticket-types/{id}:
+    patch:
+      tags: [Events]
+      summary: Update ticket type (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Ticket type updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    delete:
+      tags: [Events]
+      summary: Delete ticket type (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket type deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/published:
+    get:
+      tags: [Events]
+      summary: Get all published events
+      responses:
+        "200":
+          description: Published events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{id}:
+    get:
+      tags: [Events]
+      summary: Get event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    put:
+      tags: [Events]
+      summary: Update event (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericRequest"
+      responses:
+        "200":
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+    delete:
+      tags: [Events]
+      summary: Delete event (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{id}/publish:
+    post:
+      tags: [Events]
+      summary: Publish event (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/events/{id}/cancel:
+    post:
+      tags: [Events]
+      summary: Cancel event (organizer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Organizer overview analytics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Overview analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
+  /api/analytics/events/{eventId}:
+    get:
+      tags: [Analytics]
+      summary: Per-event analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericResponse"
