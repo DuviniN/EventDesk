@@ -1,0 +1,11 @@
+schemaVersion: 1.2
+
+endpoints:
+  - name: eventdesk-backend
+    displayName: EventDesk Backend API
+    service:
+      basePath: /
+      port: 5000
+    type: REST
+    networkVisibilities:
+      - Public
