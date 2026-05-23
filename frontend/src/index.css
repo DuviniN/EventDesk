@@ -2,13 +2,16 @@
 
 :root {
   color-scheme: light;
-  --bg-main: linear-gradient(180deg, #f5f2ff 0%, #ece6ff 35%, #ffffff 100%);
+  --bg-main:
+    radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 44%),
+    radial-gradient(circle at 92% 2%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 42%),
+    linear-gradient(180deg, #ffffff 0%, color-mix(in srgb, #ffffff 92%, var(--color-accent) 8%) 42%, #ffffff 100%);
   --text-primary: #1f0f26;
-  --surface-bg: rgba(255, 255, 255, 0.92);
-  --border-color: rgba(106, 49, 127, 0.22);
+  --surface-bg: rgba(255, 255, 255, 0.9);
+  --border-color: color-mix(in srgb, var(--color-accent) 22%, transparent);
   --color-primary: #6a317f;
   --color-accent: #6a317f;
-  --color-muted: #6a317f;
+  --color-muted: color-mix(in srgb, var(--color-accent) 78%, #ffffff 22%);
   --bg-card: #ffffff;
   --vip-color: #6a317f;
   --earlybird-color: #6a317f;

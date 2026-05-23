@@ -1,8 +1,15 @@
+require("dotenv").config();
+
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const { connectDB } = require("./config/db");
 
 const app = express();
+
+// Ensure we attempt MongoDB connection even in serverless deployments (Vercel)
+// where `server.js` might not be the actual entrypoint.
+connectDB({ strict: false, retryOnFail: false }).catch(() => {});
 
 // CORS configuration
 const devLocalhostOrigin = /^http:\/\/localhost:\d+$/;

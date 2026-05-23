@@ -64,6 +64,8 @@ async function connectDB(options = {}) {
     if (!uri) {
         const err = new Error('MONGO_URI not provided');
         lastError = err;
+        // eslint-disable-next-line no-console
+        console.warn('MongoDB not configured: MONGO_URI is missing. Set it in backend/.env or your hosting provider env vars.');
         if (strict) throw err;
         return false;
     }
