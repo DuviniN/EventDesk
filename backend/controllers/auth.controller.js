@@ -5,7 +5,7 @@ const {
   generateRefreshToken,
   verifyRefreshToken
 } = require("../utils/jwt");
-const { isEmailValid, passwordStrength } = require("../utils/validators");
+const { passwordStrength } = require("../utils/validators");
 const crypto = require('crypto');
 const RefreshToken = require('../models/RefreshToken');
 const sendEmail = require("../utils/sendEmail");
@@ -15,30 +15,10 @@ const sendEmail = require("../utils/sendEmail");
  */
 exports.register = async (req, res) => {
   try {
+    // Request-level validation is handled by middleware; controller focuses on business logic.
     let { name, email, password, role, marketingConsent } = req.body || {};
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Missing required fields: name, email, password' });
-    }
-
-    name = String(name).trim();
-    const { isNameValid } = require('../utils/validators');
-    if (!isNameValid(name)) {
-      return res.status(400).json({ message: 'Invalid name: use letters and spaces only (no numbers or symbols)' });
-    }
-
-    email = String(email).trim().toLowerCase();
-    if (!isEmailValid(email)) return res.status(400).json({ message: 'Invalid email format' });
-
-    const pwdCheck = passwordStrength(String(password));
-    if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
-
-    // Validate role
-    if (role && !['attendee', 'organizer'].includes(role)) {
-      return res.status(400).json({ message: 'Invalid role' });
-    }
-
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (existingUser) {
       return res.status(409).json({ message: 'Email already exists' });
     }
@@ -67,13 +47,9 @@ exports.register = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
+    // Request validation (presence/format) is handled by middleware
     let { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ message: 'Missing credentials' });
-
-    email = String(email).trim().toLowerCase();
-    if (!isEmailValid(email)) return res.status(400).json({ message: 'Invalid email format' });
-
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -207,8 +183,8 @@ exports.changePassword = async (req, res) => {
 // Forgot password - generate short code, email it, store hashed with expiry
 exports.forgotPassword = async (req, res) => {
   try {
+    // Request-level validation handled by middleware
     const { email } = req.body || {};
-    if (!email || !isEmailValid(email)) return res.status(400).json({ message: 'Invalid email' });
     const user = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (!user) return res.status(200).json({ message: 'If that email exists, a reset code has been sent' });
 
@@ -251,8 +227,8 @@ exports.forgotPassword = async (req, res) => {
 // Reset password
 exports.resetPassword = async (req, res) => {
   try {
+    // Password presence and strength validated by middleware
     const { token, code, email, password } = req.body || {};
-    if (!password) return res.status(400).json({ message: 'Missing password' });
 
     let user = null;
 
@@ -268,9 +244,7 @@ exports.resetPassword = async (req, res) => {
 
     if (!user) return res.status(400).json({ message: 'Invalid or expired reset code' });
 
-    const pwdCheck = passwordStrength(String(password));
-    if (!pwdCheck.valid) return res.status(400).json({ message: 'Weak password', errors: pwdCheck.errors });
-
+    // password strength already checked by request validator
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12;
     user.passwordHash = await bcrypt.hash(password, saltRounds);
     user.passwordResetToken = undefined;

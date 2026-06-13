@@ -2,8 +2,8 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import AppRoutes from "./routes/AppRoutes";
 import ThemeToggle from "./components/common/ThemeToggle";
 
-function AppShell() {
-  const { pathname } = useLocation();
+function AppShell() {  //Handles UI logic
+  const { pathname } = useLocation();//This line gets the current URL path from the browser.
 
   const isOrganizerRoute =
     pathname === "/dashboard" ||
@@ -38,7 +38,7 @@ function AppShell() {
   );
 }
 
-export default function App() {
+export default function App() { //Wraps everything with BrowserRouter
   return (
     <BrowserRouter>
       <AppShell />

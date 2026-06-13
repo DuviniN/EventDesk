@@ -10,7 +10,7 @@ const auth = (roles = []) => {
         let token = null;
         if (authHeader) {
             const parts = authHeader.split(' ');
-            if (parts.length === 2 && parts[0] === 'Bearer') {
+            if (parts.length === 2 && parts[0] === 'Bearer' && parts[1]) {
                 token = parts[1];
             } else if (!cookieToken) {
                 return res.status(401).json({ message: 'Malformed token' });

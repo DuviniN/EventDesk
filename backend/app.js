@@ -4,6 +4,9 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const { connectDB } = require("./config/db");
+const requestLogger = require("./middleware/requestLogger.middleware");
+const notFound = require("./middleware/notFound.middleware");
+const errorHandler = require("./middleware/errorHandler.middleware");
 
 const app = express();
 
@@ -41,10 +44,14 @@ app.use(
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cookieParser());
+app.use(requestLogger);
 
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/events", require("./routes/event.routes"));
 app.use("/api/analytics", require("./routes/analytics.routes"));
 app.use("/api/health", require("./routes/health.routes"));
+
+app.use(notFound);
+app.use(errorHandler);
 
 module.exports = app;

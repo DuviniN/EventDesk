@@ -21,7 +21,7 @@ api.interceptors.request.use(
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
-    return config;
+    return config; //This sends the modified request forward.
   },
   (error) => Promise.reject(error)
 );
