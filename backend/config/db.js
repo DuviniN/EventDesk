@@ -21,6 +21,7 @@ let connectPromise = null;
 let lastError = null;
 let lastAttemptAt = null;
 let lastConnectedAt = null;
+let retryScheduled = false;
 
 mongoose.connection.on('connected', () => {
     lastError = null;
@@ -75,15 +76,23 @@ async function connectDB(options = {}) {
         return true;
     }
 
-    // If a connect is already in progress, await it
+    // Persist whether any caller wants retry, so the in-flight promise can schedule it
+    const wantsRetry = retryOnFail || process.env.MONGO_RETRY_ON_FAIL === 'true';
+
+    // If a connect is already in progress, await it (and arm retry if this caller wants it)
     if (connectPromise) {
+        if (wantsRetry && !isServerless) retryScheduled = true;
         try {
-            return await connectPromise;
+            const ok = await connectPromise;
+            if (!ok && strict) throw (lastError || new Error('MongoDB connection failed'));
+            return ok;
         } catch (err) {
             if (strict) throw err;
             return false;
         }
     }
+
+    if (wantsRetry && !isServerless) retryScheduled = true;
 
     lastAttemptAt = new Date().toISOString();
     connectPromise = (async () => {
@@ -102,9 +111,9 @@ async function connectDB(options = {}) {
 
     const ok = await connectPromise;
 
-    // Retry loop is useful for long-running servers, but not for serverless.
-    const shouldRetry = (retryOnFail || process.env.MONGO_RETRY_ON_FAIL === 'true') && !isServerless;
-    if (!ok && shouldRetry) {
+    // Schedule a retry if any caller requested it (and we are not serverless)
+    if (!ok && retryScheduled) {
+        retryScheduled = false;
         setTimeout(() => {
             connectDB({ strict: false, retryOnFail: true }).catch(() => {});
         }, retryIntervalMs);
